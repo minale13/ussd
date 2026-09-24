@@ -25,12 +25,23 @@ jobs:
   build-debug-apk:
     name: Build debug APK
     runs-on: ubuntu-latest
+    # Every "run" step below executes inside ./android, which holds the Gradle
+    # project (settings.gradle.kts, app module); only action inputs such as the
+    # artifact path are resolved from the repository root.
     defaults:
       run:
         working-directory: android
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Confirm the Android project directory
+        run: |
+          # The job defaults run every step in ./android, so verify the Gradle
+          # project is really there instead of failing later inside Gradle.
+          test -f settings.gradle.kts || { echo "::error::settings.gradle.kts not found in $(pwd)"; exit 1; }
+          test -f app/build.gradle.kts || { echo "::error::app module not found under $(pwd)"; exit 1; }
+          echo "Building the Gradle project in $(pwd)"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v6
@@ -57,6 +68,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
+          # Pinned to the same Gradle as the GRADLE_VERSION env var above; this
+          # command only provides the binary used to generate the wrapper.
           gradle-version: '8.11.1'
           # Cache the wrapper distribution as well, so ./gradlew does not re-download Gradle.
           gradle-home-cache-includes: |
@@ -64,11 +77,22 @@ jobs:
             notifications
             wrapper/dists
 
-      - name: Generate the Gradle wrapper when it is missing
+      - name: Check the JDK running the build
         run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          else
+          # AGP 8.7.3 requires JDK 17; make the version visible and enforce it.
+          java_version="$(java -version 2>&1 | head -n 1)"
+          echo "java: ${java_version}"
+          case "${java_version}" in
+            *'"17'*) ;;
+            *) echo "::error::Expected JDK 17 but the build is using: ${java_version}"; exit 1 ;;
+          esac
+
+      - name: Provide the Gradle wrapper
+        run: |
+          # The wrapper is not committed, so it is generated here on demand. A
+          # wrapper that was committed without its jar is repaired as well,
+          # because ./gradlew would abort on the missing jar.
+          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
             # Generate the wrapper in a scratch project so this step does not
             # depend on the Android build being configurable yet. Gradle 8
             # refuses to run in a directory that holds no build at all, so the
@@ -81,9 +105,16 @@ jobs:
               tail -60 "$scratch/wrapper.log"
               exit 1
             fi
-            cp -r "$scratch/gradle" "$scratch/gradlew" "$scratch/gradlew.bat" .
-            chmod +x gradlew
+            mkdir -p gradle/wrapper
+            cp "$scratch/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/gradle-wrapper.jar
+            cp "$scratch/gradle/wrapper/gradle-wrapper.properties" gradle/wrapper/gradle-wrapper.properties
+            cp "$scratch/gradlew" "$scratch/gradlew.bat" .
           fi
+
+          # A fresh checkout drops the executable bit, so restore it before use.
+          chmod +x gradlew
+
+          # Prints the Gradle, JVM and Android SDK versions used by the build.
           ./gradlew --version
 
       - name: Assemble debug APK
