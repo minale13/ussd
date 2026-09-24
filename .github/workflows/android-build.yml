@@ -1,0 +1,96 @@
+name: Android Build
+
+# Builds the Android USSD gateway companion app and publishes the debug APK
+# as a downloadable workflow artifact.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two builds of the same branch at the same time.
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # AGP 8.7.3 requires Gradle >= 8.9 and JDK 17 (see android/app/build.gradle.kts).
+  GRADLE_VERSION: '8.11.1'
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+
+jobs:
+  assemble-debug-apk:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          # Command line tools + platform-tools, plus the SDK licenses are accepted.
+          packages: 'platform-tools'
+
+      - name: Install Android platform and build tools
+        run: sdkmanager --install "platforms;android-${ANDROID_COMPILE_SDK}" "build-tools;${ANDROID_BUILD_TOOLS}"
+
+      - name: Point the build at the Android SDK
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "Using Android SDK at ${SDK_DIR}"
+          echo "sdk.dir=${SDK_DIR}" > local.properties
+          echo "ANDROID_HOME=${SDK_DIR}" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+          # Cache the wrapper distribution as well, so ./gradlew does not re-download Gradle.
+          gradle-home-cache-includes: |
+            caches
+            notifications
+            wrapper/dists
+
+      - name: Generate the Gradle wrapper when it is missing
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+          else
+            # Generate the wrapper in a scratch directory so this step never
+            # depends on the Android project being configurable yet.
+            scratch="$(mktemp -d)"
+            (cd "$scratch" && gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin)
+            cp -r "$scratch/gradle" "$scratch/gradlew" "$scratch/gradlew.bat" .
+            chmod +x gradlew
+          fi
+          ./gradlew --version
+
+      - name: Assemble debug APK
+        env:
+          # Dependency-graph submission needs a write-scoped token; this job stays read-only.
+          GITHUB_DEPENDENCY_GRAPH_ENABLED: 'false'
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Show build output
+        run: ls -lh app/build/outputs/apk/debug/
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
