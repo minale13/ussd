@@ -22,8 +22,8 @@ env:
   ANDROID_BUILD_TOOLS: '35.0.0'
 
 jobs:
-  assemble-debug-apk:
-    name: Assemble debug APK
+  build-debug-apk:
+    name: Build debug APK
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -69,10 +69,18 @@ jobs:
           if [ -f gradlew ]; then
             chmod +x gradlew
           else
-            # Generate the wrapper in a scratch directory so this step never
-            # depends on the Android project being configurable yet.
+            # Generate the wrapper in a scratch project so this step does not
+            # depend on the Android build being configurable yet. Gradle 8
+            # refuses to run in a directory that holds no build at all, so the
+            # scratch project gets an empty settings file.
             scratch="$(mktemp -d)"
-            (cd "$scratch" && gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin)
+            : > "$scratch/settings.gradle"
+            if ! (cd "$scratch" && gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin) > "$scratch/wrapper.log" 2>&1; then
+              # Surface the reason as a public annotation, keeping the log short.
+              echo "::error title=Gradle wrapper generation failed::$(tail -c 1200 "$scratch/wrapper.log" | tr '\n' ' ' | sed 's/%/%25/g')"
+              tail -60 "$scratch/wrapper.log"
+              exit 1
+            fi
             cp -r "$scratch/gradle" "$scratch/gradlew" "$scratch/gradlew.bat" .
             chmod +x gradlew
           fi
