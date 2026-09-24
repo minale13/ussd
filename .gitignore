@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.env
+coverage/
+
+# Android / Gradle build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# OS / editor / temp
+.DS_Store
+Thumbs.db
+*.log
+.tmp-*

@@ -1,0 +1,11 @@
+process.env.NODE_ENV ??= 'test';
+process.env.DATABASE_URL ??= 'postgres://withdrawal:withdrawal@localhost:5432/withdrawal';
+process.env.REDIS_URL ??= 'redis://localhost:6379';
+process.env.JWT_SECRET ??= 'unit-test-jwt-secret-that-is-at-least-32-characters';
+process.env.ADMIN_API_KEY ??= 'unit-test-admin-key-that-is-long';
+process.env.ADMIN_WITHDRAWAL_USER_ID ??= '11111111-1111-4111-8111-111111111111';
+process.env.PAYMENT_WEBHOOK_SECRET ??= 'unit-test-webhook-secret';
+process.env.MIN_WITHDRAWAL ??= '1.00';
+process.env.MAX_WITHDRAWAL ??= '100000.00';
+process.env.WORKER_CONCURRENCY ??= '10';
+process.env.PROCESSING_TIMEOUT_SECONDS ??= '300';
