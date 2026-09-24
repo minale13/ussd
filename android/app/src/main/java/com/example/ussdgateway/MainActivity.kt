@@ -1,7 +1,6 @@
 package com.example.ussdgateway
 
 import android.Manifest
-import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Intent
