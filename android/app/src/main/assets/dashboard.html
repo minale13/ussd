@@ -91,7 +91,7 @@
     </section>
 
     <!-- payout settings -->
-    <section class="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+    <section id="payout-settings" class="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
       <div class="flex items-center justify-between">
         <p class="text-[13px] font-bold uppercase tracking-[0.16em] text-white">Payout settings</p>
         <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Saved automatically</span>
@@ -328,6 +328,10 @@
             ? "Android must allow phone and SIM access before payouts can run."
             : "Accessibility drives the USSD menus; phone and SIM access place the call on your chosen card.";
         }
+
+        // Payout settings are editable only while the gateway is stopped. A running
+        // service has already captured its channel and SIM selection.
+        document.getElementById("payout-settings").classList.toggle("hidden", running);
 
         // channel radios
         var channelInputs = document.querySelectorAll('input[name="channel"]');
