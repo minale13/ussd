@@ -57,11 +57,196 @@
     0%, 100% { transform: scale(0.96); box-shadow: 0 0 0 1.5rem rgba(16, 185, 129, 0.05), 0 0 4rem rgba(16, 185, 129, 0.22), inset 0 0 2.5rem rgba(52, 211, 153, 0.18); }
     50% { transform: scale(1.04); box-shadow: 0 0 0 2rem rgba(16, 185, 129, 0.04), 0 0 6rem rgba(16, 185, 129, 0.38), inset 0 0 3rem rgba(52, 211, 153, 0.26); }
   }
+
+  /* ---------------------------------------------------------------------
+     Onboarding (channel picker -> branded login). The brand accent is a
+     runtime CSS variable (--brand / --brand-ring / --brand-ink) set by
+     applyBrand(), so one set of rules styles both the Telebirr and the
+     CBE Birr screens without duplicating markup.
+     --------------------------------------------------------------------- */
+  #onboarding { display: none; }
+  #onboarding.onboarding-open { display: flex; }
+
+  .brand-tile {
+    position: relative;
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem 1.1rem;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .brand-tile:active { transform: scale(0.985); }
+  .brand-tile:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+  .brand-tile::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(120deg, var(--tile-tint), transparent 62%);
+    content: "";
+    pointer-events: none;
+  }
+  .brand-logo {
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    border-radius: 0.75rem;
+    background: #fff;
+  }
+
+  .brand-field {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.875rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.85rem 1rem;
+    color: #fff;
+    font-size: 1rem;
+    line-height: 1.25rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .brand-field::placeholder { color: rgba(148, 163, 184, 0.75); }
+  .brand-field:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+    outline: none;
+  }
+  .brand-field[aria-invalid="true"] { border-color: #fb7185; }
+
+  /* The phone field renders inside a bordered wrapper that already draws the
+     border (and a fixed +251 prefix), so it only needs the inner text styling. */
+  .login-phone-input {
+    width: 100%;
+    min-width: 0;
+    background: transparent;
+    padding: 0.85rem 1rem;
+    color: #fff;
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+  .login-phone-input::placeholder { color: rgba(148, 163, 184, 0.75); }
+  .login-phone-input:focus { outline: none; }
+  .login-phone-input[aria-invalid="true"] { color: #fecdd3; }
+  .phone-wrap:focus-within {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+  .phone-wrap:has(.login-phone-input[aria-invalid="true"]) { border-color: #fb7185; }
+
+  .brand-submit {
+    width: 100%;
+    border-radius: 0.875rem;
+    padding: 0.9rem 1rem;
+    background: var(--brand);
+    color: var(--brand-ink);
+    font-size: 0.8125rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .brand-submit:active { transform: scale(0.985); }
+  .brand-submit:disabled { cursor: not-allowed; opacity: 0.45; }
 </style>
 </head>
 <body class="min-h-screen bg-[#0A1228] text-slate-100 antialiased selection:bg-emerald-400/30 selection:text-emerald-50">
-  <!-- Ambient gradient so the flat navy gains some depth -->
-  <div class="pointer-events-none fixed inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,#14264d_0%,#0A1228_55%)]"></div>
+  <!--
+    Onboarding gate. Opens on first launch (and from Settings) until a channel
+    login is saved, because the automated USSD flow needs the wallet phone and
+    PIN before it can run. Two steps in one overlay: the channel picker, then
+    the brand-styled login form for whichever channel was tapped.
+  -->
+  <div id="onboarding" class="onboarding-open fixed inset-0 z-[60] flex-col overflow-y-auto bg-[#0A1228]">
+    <!-- Step 1: channel selection -->
+    <section id="onboard-pick" class="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pb-10 pt-14">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Step 1 of 2</p>
+      <h1 class="mt-2 text-2xl font-bold tracking-tight text-white">Choose your channel</h1>
+      <p class="mt-2 text-[13px] leading-relaxed text-slate-400">Payout USSD calls run through the wallet you pick. You can change this later in Settings.</p>
+
+      <div class="mt-7 grid gap-3.5">
+        <button type="button" class="brand-tile" data-channel-pick="TELEBIRR" style="--tile-tint: rgba(1,114,187,0.30)">
+          <span class="relative z-10 flex items-center gap-3.5">
+            <span class="brand-logo grid place-items-center p-1.5">
+              <!-- Official Telebirr mark (Ethio Telecom), brand blue #0172bb -->
+              <svg viewBox="0 0 682.667 682.667" class="h-full w-full" role="img" aria-label="Telebirr">
+                <path fill="#0172bb" d="M510.68 657.13c-73.8-10.75-127.9-64.93-138.85-139.1-2.31-15.62-1.99-42.11.69-56.75.74-4.03 4.67-26.23 8.74-49.33 4.07-23.1 11.3-64.08 16.06-91.06 4.76-26.98 9.56-50.8 10.66-52.93 1.1-2.13 4.21-5.55 6.9-7.61l4.9-3.74h144.55v.01l3.89 4.35c7.26 8.13 4.29 20.56-6.67 27.95-4.49 3.02-4.62 3.03-56.64 3.04-56.63 0-68.12.86-91.15 6.77-54.67 14.03-106.67 56.88-132.3 109.02-31.6 64.29-23.69 132.95 20.31 176.26 42.19 41.53 108.49 50.31 165.15 21.87 51.72-25.95 86.53-85.11 78-132.55-6.8-37.82-38.98-63.92-78.93-64.02-39.1-.09-78.01 31.41-86.62 70.13-7.1 31.9 10.08 57.15 41.2 60.56 7.88 2.87 19.96 7.78 24.84-1.62 4.43-9.47 7.86-44.43 14.5-104.98 4.42-40.51 7.04-43.19 18.61-98 11.57-54.81 4.29-95.98 2.61-101.32-1.68-5.38-7.29-12.01-12.7-10.82-5.74 1.79-7.79 1.85-13.05-.43zM307.74 474c-2.34-1.02-5.26-3.81-6.5-6.2-1.97-3.81-2.06-5.7-.75-15.1 9.84-70.44-25.97-131.72-89.2-152.68-12.57-4.17-24.21-6.37-39.3-7.45-7.34-.52-14.86-1.72-16.72-2.67-4.93-2.52-7.09-7.45-6.31-14.42.87-7.65 5.33-13.86 12.23-16.99 5.16-2.35 10.71-2.48 100.8-2.51 92.17-.02 95.47.06 99.59 2.57 8.78 5.35 9.03 2.52-9.49 107.06-9.19 51.88-17.56 95.98-18.61 98-2.61 5.03-7.29 9.01-12.7 10.82zm117.32-256.98c-2.96-1.43-7.07-8.47-7.07-12.12 0-5.87 33.75-191.23 35.4-194.42 3.14-6.07 10.85-10.53 18.22-10.53 5.12 0 7.17.75 10.69 3.9 4.31 3.86 4.35 4 3.72 13.67-.35 5.37-.62 19.36-.6 31.1.02 17.9.51 23.15 3.06 32.66 6.83 25.55 16.9 43.51 34.1 60.85 18.72 18.87 37.97 29.84 64.15 36.55 10.59 2.72 16.21 3.15 49.93 3.84 41.72.84 42.2.94 46.09 9.15 2.51 5.29 1.63 10.93-2.76 17.74 1.4 9.22-6.29 25.95-9.75 38.13-6.29 22.19-20.73 49.44-41.55 58.5-11.83 2.24-39.1 2.55-52.58.58z"/>
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[15px] font-semibold text-white">Telebirr</span>
+              <span class="mt-0.5 block text-[11px] text-slate-400">Ethio Telecom mobile money</span>
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 flex-none text-slate-500" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </button>
+
+        <button type="button" class="brand-tile" data-channel-pick="CBE" style="--tile-tint: rgba(0,124,74,0.32)">
+          <span class="relative z-10 flex items-center gap-3.5">
+            <span class="brand-logo grid place-items-center p-1.5">
+              <!-- Commercial Bank of Ethiopia mark: green shield, gold coin, green "B" -->
+              <svg viewBox="0 0 64 64" class="h-full w-full" role="img" aria-label="CBE Birr">
+                <path fill="#007C4A" d="M32 3 6 12v20c0 14 10.6 24.6 26 29 15.4-4.4 26-15 26-29V12L32 3Z"/>
+                <circle cx="32" cy="29" r="13" fill="#F5C518"/>
+                <circle cx="32" cy="29" r="9.4" fill="none" stroke="#007C4A" stroke-width="1.6"/>
+                <path fill="#007C4A" d="M32 21.5c1 0 1.6.7 1.6 1.6v3.1h2.8c1 0 1.7.7 1.7 1.7s-.7 1.7-1.7 1.7h-2.8v3.2h3.2c1 0 1.7.7 1.7 1.7s-.7 1.7-1.7 1.7H32v1.6c0 .9-.7 1.6-1.6 1.6s-1.6-.7-1.6-1.6v-1.6h-3.2c-1 0-1.7-.7-1.7-1.7s.7-1.7 1.7-1.7h3.2v-3.2h-2.8c-1 0-1.7-.7-1.7-1.7s.7-1.7 1.7-1.7h2.8v-3.1c0-.9.6-1.6 1.6-1.6Z"/>
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[15px] font-semibold text-white">CBE Birr</span>
+              <span class="mt-0.5 block text-[11px] text-slate-400">Commercial Bank of Ethiopia</span>
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 flex-none text-slate-500" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </button>
+      </div>
+
+      <p class="mt-auto pt-8 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
+        Your phone and PIN are stored on this device only and used to drive the payout USSD session.
+      </p>
+    </section>
+
+    <!-- Step 2: branded login form, re-themed per channel by applyBrand() -->
+    <section id="onboard-login" class="mx-auto hidden min-h-full w-full max-w-md flex-col px-5 pb-10 pt-10">
+      <button type="button" id="onboard-back" class="flex items-center gap-1.5 self-start text-[12px] font-semibold text-slate-400 transition hover:text-white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+        Change channel
+      </button>
+
+      <div class="mt-6 flex flex-col items-center text-center">
+        <span id="login-logo" class="brand-logo grid place-items-center p-1.5"></span>
+        <h2 id="login-title" class="mt-4 text-xl font-bold tracking-tight text-white">Log in</h2>
+        <p id="login-sub" class="mt-1.5 text-[12px] text-slate-400"></p>
+      </div>
+
+      <form id="login-form" class="mt-7" novalidate>
+        <label for="login-phone" class="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Phone number</label>
+        <div class="phone-wrap mt-2 flex items-stretch overflow-hidden rounded-[0.875rem] border border-white/10 bg-white/5">
+          <span class="grid place-items-center border-r border-white/10 px-3.5 text-[14px] font-semibold text-slate-300">+251</span>
+          <input id="login-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="12" placeholder="9XX XXX XXX" class="login-phone-input" aria-describedby="login-phone-error">
+        </div>
+        <p id="login-phone-error" class="mt-1.5 hidden text-[11px] text-rose-300"></p>
+
+        <label for="login-pin" class="mt-5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400" id="login-pin-label">PIN</label>
+        <div class="relative mt-2">
+          <input id="login-pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" class="brand-field pr-11" aria-describedby="login-pin-error">
+          <button type="button" id="login-pin-toggle" aria-label="Show PIN" aria-pressed="false" class="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:text-white">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <p id="login-pin-error" class="mt-1.5 hidden text-[11px] text-rose-300"></p>
+
+        <button type="submit" id="login-submit" class="brand-submit mt-7">Save &amp; continue</button>
+        <p id="login-status" class="mt-3 hidden text-center text-[12px] font-medium" role="status" aria-live="polite"></p>
+      </form>
+
+      <p class="mt-auto pt-8 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
+        Stored locally on this device. It is never uploaded to the payout server.
+      </p>
+    </section>
+  </div>
 
   <div class="relative mx-auto min-h-screen w-full max-w-md px-4 pb-12">
     <!-- top bar -->
@@ -118,6 +303,14 @@
           <p id="stat-sim" class="mt-1 truncate text-sm font-semibold text-white">SIM 1</p>
         </div>
       </div>
+
+      <button id="hero-credentials" type="button" class="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition active:scale-[0.99]">
+        <span class="min-w-0">
+          <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Channel login</span>
+          <span id="hero-credentials-value" class="mt-0.5 block truncate text-sm font-semibold text-white">Not set</span>
+        </span>
+        <span class="shrink-0 text-[11px] font-semibold text-emerald-300">Edit</span>
+      </button>
 
       <button id="action-btn" class="mt-5 w-full rounded-2xl bg-emerald-500 py-3.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#052e16] shadow-lg shadow-emerald-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
         Start gateway
@@ -188,6 +381,7 @@
       <p class="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
       <div id="sim-list" class="mt-2 grid gap-3"></div>
       <p class="mt-2 text-[10px] leading-relaxed text-slate-500">USSD payout calls are placed on the selected card.</p>
+      <button id="settings-credentials" type="button" class="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-[12px] font-bold uppercase tracking-[0.16em] text-slate-200 transition active:scale-[0.98]">Channel login</button>
       <button id="settings-stop" type="button" class="mt-6 hidden w-full rounded-2xl bg-rose-500 py-3.5 text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#450a14] shadow-lg shadow-rose-500/20 transition active:scale-[0.98]">Stop gateway</button>
     </section>
     <script>
@@ -206,10 +400,14 @@
           .replace(/"/g, "&quot;");
       }
 
-      function call(method, arg) {
+      // Forwards every argument to the bridge. Android's @JavascriptInterface
+      // only exposes fixed-arity String methods, so setCredentials needs all
+      // three of channel/phone/pin to arrive.
+      function call(method) {
         if (!bridge) return null;
+        var args = Array.prototype.slice.call(arguments, 1);
         try {
-          return arg === undefined ? bridge[method]() : bridge[method](arg);
+          return bridge[method].apply(bridge, args);
         } catch (err) {
           console.warn(method, err);
           return null;
@@ -220,12 +418,247 @@
         return channel === "CBE" ? "CBE Birr" : "Telebirr";
       }
 
+      // ---------------------------------------------------------------------
+      // Channel brands. Colours follow each provider's public identity so the
+      // login screen reads as theirs: Telebirr (Ethio Telecom) blue #0172bb,
+      // CBE green #007C4A with the gold #F5C518 from the CBE Birr mark.
+      // `logo` is injected as markup (not an <img>) so it needs no network or
+      // extra asset in the APK.
+      // ---------------------------------------------------------------------
+      var BRANDS = {
+        TELEBIRR: {
+          label: "Telebirr",
+          owner: "Ethio Telecom",
+          title: "Log in to Telebirr",
+          sub: "Enter the mobile money number and PIN used for payouts.",
+          pinLabel: "PIN",
+          cta: "Save & continue",
+          color: "#0172bb",
+          ring: "rgba(1,114,187,0.30)",
+          ink: "#ffffff",
+          logo: '<svg viewBox="0 0 682.667 682.667" class="h-full w-full" role="img" aria-label="Telebirr logo"><path fill="#0172bb" d="M510.68 657.13c-73.8-10.75-127.9-64.93-138.85-139.1-2.31-15.62-1.99-42.11.69-56.75.74-4.03 4.67-26.23 8.74-49.33 4.07-23.1 11.3-64.08 16.06-91.06 4.76-26.98 9.56-50.8 10.66-52.93 1.1-2.13 4.21-5.55 6.9-7.61l4.9-3.74h144.55v.01l3.89 4.35c7.26 8.13 4.29 20.56-6.67 27.95-4.49 3.02-4.62 3.03-56.64 3.04-56.63 0-68.12.86-91.15 6.77-54.67 14.03-106.67 56.88-132.3 109.02-31.6 64.29-23.69 132.95 20.31 176.26 42.19 41.53 108.49 50.31 165.15 21.87 51.72-25.95 86.53-85.11 78-132.55-6.8-37.82-38.98-63.92-78.93-64.02-39.1-.09-78.01 31.41-86.62 70.13-7.1 31.9 10.08 57.15 41.2 60.56 7.88 2.87 19.96 7.78 24.84-1.62 4.43-9.47 7.86-44.43 14.5-104.98 4.42-40.51 7.04-43.19 18.61-98 11.57-54.81 4.29-95.98 2.61-101.32-1.68-5.38-7.29-12.01-12.7-10.82-5.74 1.79-7.79 1.85-13.05-.43zM307.74 474c-2.34-1.02-5.26-3.81-6.5-6.2-1.97-3.81-2.06-5.7-.75-15.1 9.84-70.44-25.97-131.72-89.2-152.68-12.57-4.17-24.21-6.37-39.3-7.45-7.34-.52-14.86-1.72-16.72-2.67-4.93-2.52-7.09-7.45-6.31-14.42.87-7.65 5.33-13.86 12.23-16.99 5.16-2.35 10.71-2.48 100.8-2.51 92.17-.02 95.47.06 99.59 2.57 8.78 5.35 9.03 2.52-9.49 107.06-9.19 51.88-17.56 95.98-18.61 98-2.61 5.03-7.29 9.01-12.7 10.82zm117.32-256.98c-2.96-1.43-7.07-8.47-7.07-12.12 0-5.87 33.75-191.23 35.4-194.42 3.14-6.07 10.85-10.53 18.22-10.53 5.12 0 7.17.75 10.69 3.9 4.31 3.86 4.35 4 3.72 13.67-.35 5.37-.62 19.36-.6 31.1.02 17.9.51 23.15 3.06 32.66 6.83 25.55 16.9 43.51 34.1 60.85 18.72 18.87 37.97 29.84 64.15 36.55 10.59 2.72 16.21 3.15 49.93 3.84 41.72.84 42.2.94 46.09 9.15 2.51 5.29 1.63 10.93-2.76 17.74 1.4 9.22-6.29 25.95-9.75 38.13-6.29 22.19-20.73 49.44-41.55 58.5-11.83 2.24-39.1 2.55-52.58.58z"/></svg>'
+        },
+        CBE: {
+          label: "CBE Birr",
+          owner: "Commercial Bank of Ethiopia",
+          title: "Log in to CBE Birr",
+          sub: "Enter your CBE Birr phone number and password.",
+          pinLabel: "PIN / password",
+          cta: "Save & continue",
+          color: "#007C4A",
+          ring: "rgba(0,124,74,0.32)",
+          ink: "#ffffff",
+          logo: '<svg viewBox="0 0 64 64" class="h-full w-full" role="img" aria-label="CBE Birr logo"><path fill="#007C4A" d="M32 3 6 12v20c0 14 10.6 24.6 26 29 15.4-4.4 26-15 26-29V12L32 3Z"/><circle cx="32" cy="29" r="13" fill="#F5C518"/><circle cx="32" cy="29" r="9.4" fill="none" stroke="#007C4A" stroke-width="1.6"/><path fill="#007C4A" d="M32 21.5c1 0 1.6.7 1.6 1.6v3.1h2.8c1 0 1.7.7 1.7 1.7s-.7 1.7-1.7 1.7h-2.8v3.2h3.2c1 0 1.7.7 1.7 1.7s-.7 1.7-1.7 1.7H32v1.6c0 .9-.7 1.6-1.6 1.6s-1.6-.7-1.6-1.6v-1.6h-3.2c-1 0-1.7-.7-1.7-1.7s.7-1.7 1.7-1.7h3.2v-3.2h-2.8c-1 0-1.7-.7-1.7-1.7s.7-1.7 1.7-1.7h2.8v-3.1c0-.9.6-1.6 1.6-1.6Z"/></svg>'
+        }
+      };
+
+      function brand(channel) {
+        return channel === "CBE" ? BRANDS.CBE : BRANDS.TELEBIRR;
+      }
+
       function fetchState() {
         var raw = call("getState");
         if (raw) {
           try { return JSON.parse(raw); } catch (err) { console.warn("bad state", err); }
         }
         return window.__DEMO__ || null;
+      }
+
+      // ---------------------------------------------------------------------
+      // Credential storage.
+      //
+      // On Android the bridge is the source of truth: setCredentials() writes to
+      // SharedPreferences("ussd") next to `channel`, which is what the polling
+      // and accessibility services read. localStorage is mirrored as well so the
+      // same page works in the browser preview (where there is no bridge) and so
+      // a reload repaints the form before the first bridge round-trip.
+      // ---------------------------------------------------------------------
+      var STORAGE_KEY = "ussd.credentials";
+
+      function normalizeChannel(value) {
+        return value === "CBE" ? "CBE" : "TELEBIRR";
+      }
+
+      // Accepts what people actually type: "0911...", "+251911...", "251911..."
+      // and spaces. Returns the local 10-digit form (09XXXXXXXX) or "".
+      function normalizePhone(raw) {
+        var digits = String(raw == null ? "" : raw).replace(/\D/g, "");
+        if (digits.indexOf("251") === 0) digits = digits.slice(3);
+        if (digits.length === 9 && digits.charAt(0) === "9") digits = "0" + digits;
+        if (digits.length !== 10 || digits.charAt(0) !== "0") return "";
+        if (!/^0[97]/.test(digits)) return "";
+        return digits;
+      }
+
+      function readCredentials() {
+        var stored = null;
+        try {
+          var raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+          if (raw) stored = JSON.parse(raw);
+        } catch (err) {
+          console.warn("credential read failed", err);
+          return null;
+        }
+        // The bridge snapshot wins when it carries a login, so a save performed
+        // by a previous process is reflected even if localStorage was cleared.
+        var state = fetchState();
+        if (state && state.credentials && state.credentials.phone) {
+          return {
+            channel: normalizeChannel(state.credentials.channel),
+            phone: String(state.credentials.phone),
+            savedAt: Number(state.credentials.savedAt) || 0
+          };
+        }
+        if (!stored || !stored.phone) return null;
+        return {
+          channel: normalizeChannel(stored.channel),
+          phone: String(stored.phone),
+          savedAt: Number(stored.savedAt) || 0
+        };
+      }
+
+      function saveCredentials(channel, phone, pin) {
+        var record = {
+          channel: normalizeChannel(channel),
+          phone: phone,
+          pin: String(pin),
+          savedAt: Date.now()
+        };
+        // The PIN never goes to localStorage: the bridge keeps it in
+        // SharedPreferences, so a WebView storage dump cannot leak it.
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              channel: record.channel,
+              phone: record.phone,
+              savedAt: record.savedAt
+            }));
+          }
+        } catch (err) {
+          console.warn("credential write failed", err);
+        }
+        call("setCredentials", record.channel, record.phone, record.pin);
+        return record;
+      }
+
+      // ---------------------------------------------------------------------
+      // Onboarding controller
+      // ---------------------------------------------------------------------
+      var onboardRoot = document.getElementById("onboarding");
+      var pickStep = document.getElementById("onboard-pick");
+      var loginStep = document.getElementById("onboard-login");
+      var loginForm = document.getElementById("login-form");
+      var phoneInput = document.getElementById("login-phone");
+      var pinInput = document.getElementById("login-pin");
+      var pinLabel = document.getElementById("login-pin-label");
+      var phoneError = document.getElementById("login-phone-error");
+      var pinError = document.getElementById("login-pin-error");
+      var loginStatus = document.getElementById("login-status");
+      var submitBtn = document.getElementById("login-submit");
+      var activeChannel = "TELEBIRR";
+
+      function showOnboarding(channel) {
+        onboardRoot.classList.add("onboarding-open");
+        document.body.classList.add("overflow-hidden");
+        showPick();
+        // Deep-link straight to the form when Settings re-opens a known channel.
+        if (channel) showLogin(channel);
+      }
+
+      function hideOnboarding() {
+        onboardRoot.classList.remove("onboarding-open");
+        document.body.classList.remove("overflow-hidden");
+      }
+
+      function showPick() {
+        pickStep.classList.remove("hidden");
+        loginStep.classList.add("hidden");
+        var first = onboardRoot.querySelector(".brand-tile");
+        if (first) first.focus();
+      }
+
+      // Paints the whole form in the channel's identity. Everything brand
+      // coloured is driven by these three CSS variables, so Telebirr and CBE
+      // share one code path.
+      function applyBrand(channel) {
+        var b = brand(channel);
+        onboardRoot.style.setProperty("--brand", b.color);
+        onboardRoot.style.setProperty("--brand-ring", b.ring);
+        onboardRoot.style.setProperty("--brand-ink", b.ink);
+        document.getElementById("login-logo").innerHTML = b.logo;
+        document.getElementById("login-title").textContent = b.title;
+        document.getElementById("login-sub").textContent = b.sub;
+        pinLabel.textContent = b.pinLabel;
+        document.getElementById("login-pin").setAttribute("aria-label", b.pinLabel);
+        submitBtn.textContent = b.cta;
+      }
+
+      function showLogin(channel) {
+        activeChannel = normalizeChannel(channel);
+        applyBrand(activeChannel);
+        pickStep.classList.add("hidden");
+        loginStep.classList.remove("hidden");
+        clearFieldError(phoneInput, phoneError);
+        clearFieldError(pinInput, pinError);
+        setStatus("");
+        if (phoneInput) phoneInput.focus();
+      }
+
+      function setFieldError(input, node, message) {
+        if (!node) return;
+        if (message) {
+          input.setAttribute("aria-invalid", "true");
+          node.textContent = message;
+          node.classList.remove("hidden");
+        } else {
+          input.removeAttribute("aria-invalid");
+          node.textContent = "";
+          node.classList.add("hidden");
+        }
+      }
+      function clearFieldError(input, node) { setFieldError(input, node, ""); }
+
+      function setStatus(message, kind) {
+        if (!loginStatus) return;
+        loginStatus.textContent = message || "";
+        loginStatus.classList.toggle("hidden", !message);
+        loginStatus.className = message
+          ? "mt-3 text-center text-[12px] font-medium " + (kind === "error" ? "text-rose-300" : "text-emerald-300")
+          : "mt-3 hidden text-center text-[12px] font-medium";
+      }
+
+      function submitLogin(event) {
+        if (event) event.preventDefault();
+        var phone = normalizePhone(phoneInput.value);
+        var pin = String(pinInput.value || "").trim();
+        var phoneOk = true;
+        var pinOk = true;
+
+        if (!phone) {
+          setFieldError(phoneInput, phoneError, "Enter a valid Ethiopian number, e.g. 0911 234 567.");
+          phoneOk = false;
+        } else {
+          clearFieldError(phoneInput, phoneError);
+        }
+
+        if (pin.length < 4) {
+          setFieldError(pinInput, pinError, "Your PIN is at least 4 digits.");
+          pinOk = false;
+        } else {
+          clearFieldError(pinInput, pinError);
+        }
+
+        if (!phoneOk || !pinOk) {
+          setStatus("Check the highlighted fields.", "error");
+          return;
+        }
+
+        saveCredentials(activeChannel, phone, pin);
+        setStatus("Saved. Opening your dashboard…", "ok");
+        setTimeout(function () {
+          hideOnboarding();
+          refresh();
+        }, 450);
       }
 
       function simFace(slot, checked) {
@@ -348,6 +781,12 @@
         }
         document.getElementById("stat-sim").textContent = simName;
 
+        // saved channel login (phone only; the PIN never reaches the page)
+        var cred = readCredentials();
+        document.getElementById("hero-credentials-value").textContent = cred
+          ? "+251 " + cred.phone
+          : "Not set";
+
         // primary action button
         var action = document.getElementById("action-btn");
         var hint = document.getElementById("action-hint");
@@ -390,6 +829,7 @@
         document.getElementById("active-view").classList.toggle("flex", running);
         document.getElementById("dashboard-content").classList.toggle("hidden", running);
         document.getElementById("settings-stop").classList.toggle("hidden", !running);
+        document.getElementById("hero-credentials").classList.toggle("hidden", running);
 
         // channel radios
         var channelInputs = document.querySelectorAll('input[name="channel"]');
@@ -435,6 +875,52 @@
       document.getElementById("perm-a11y").addEventListener("click", function () { call("openAccessibilitySettings"); });
       document.getElementById("perm-sys").addEventListener("click", function () { call("openAppSettings"); });
 
+      // ---- onboarding events ----------------------------------------------
+      var brandTiles = onboardRoot.querySelectorAll("[data-channel-pick]");
+      for (var t = 0; t < brandTiles.length; t++) {
+        brandTiles[t].addEventListener("click", function (ev) {
+          showLogin(ev.currentTarget.getAttribute("data-channel-pick"));
+        });
+      }
+      document.getElementById("onboard-back").addEventListener("click", function () { showPick(); });
+      loginForm.addEventListener("submit", submitLogin);
+
+      // Digits only: the +251 prefix is a separate, non-editable span.
+      phoneInput.addEventListener("input", function () {
+        var cleaned = phoneInput.value.replace(/[^\d]/g, "").slice(0, 12);
+        if (cleaned !== phoneInput.value) phoneInput.value = cleaned;
+        if (phoneInput.getAttribute("aria-invalid") === "true") clearFieldError(phoneInput, phoneError);
+      });
+      pinInput.addEventListener("input", function () {
+        var cleaned = pinInput.value.replace(/[^\d]/g, "").slice(0, 8);
+        if (cleaned !== pinInput.value) pinInput.value = cleaned;
+        if (pinInput.getAttribute("aria-invalid") === "true") clearFieldError(pinInput, pinError);
+      });
+
+      // Show/hide the PIN. Kept as a button + aria-pressed so it stays reachable
+      // by screen readers and keyboard users.
+      var pinToggle = document.getElementById("login-pin-toggle");
+      pinToggle.addEventListener("click", function () {
+        var shown = pinInput.type === "text";
+        pinInput.type = shown ? "password" : "text";
+        pinToggle.setAttribute("aria-pressed", String(!shown));
+        pinToggle.setAttribute("aria-label", shown ? "Show PIN" : "Hide PIN");
+        pinInput.focus();
+      });
+
+      // Settings re-opens the flow for the channel currently selected.
+      document.getElementById("settings-credentials").addEventListener("click", function () {
+        var s = fetchState();
+        setSettingsOpen(false);
+        showOnboarding(s ? s.channel : "TELEBIRR");
+      });
+
+      // Same entry point on the hero card, for the common "wrong PIN" case.
+      document.getElementById("hero-credentials").addEventListener("click", function () {
+        var s = fetchState();
+        showOnboarding(s ? s.channel : "TELEBIRR");
+      });
+
       // Called from Kotlin via evaluateJavascript("refresh()") after every action,
       // and by the local polling interval so service-side changes show up too.
       function refresh() {
@@ -442,7 +928,17 @@
         if (s) render(s);
       }
 
+      // Onboarding gate. A saved login is required before the gateway can dial a
+      // payout, so the overlay stays up until one exists. The markup ships with
+      // `onboarding-open` so there is no flash of the dashboard before this runs;
+      // hideOnboarding() is what removes it once credentials are saved.
+      function syncOnboardingGate() {
+        if (readCredentials()) hideOnboarding();
+        else showOnboarding(null);
+      }
+
       refresh();
+      syncOnboardingGate();
       setInterval(refresh, 2500);
     </script>
   </div>

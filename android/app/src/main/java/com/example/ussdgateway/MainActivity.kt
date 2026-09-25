@@ -188,6 +188,16 @@ class MainActivity : ComponentActivity() {
             }
             state.put("sims", sims)
             state.put("logs", ActivityLog.dump(this@MainActivity))
+            // Only the channel and phone are exposed: the PIN stays in
+            // SharedPreferences and is never handed back to the WebView.
+            val loginPhone = preferences.getString("login_phone", null)
+            state.put(
+                "credentials",
+                if (loginPhone.isNullOrEmpty()) JSONObject() else JSONObject()
+                    .put("channel", preferences.getString("channel", "TELEBIRR"))
+                    .put("phone", loginPhone)
+                    .put("savedAt", preferences.getLong("login_saved_at", 0L))
+            )
             return state.toString()
         }
 
@@ -196,6 +206,34 @@ class MainActivity : ComponentActivity() {
             if (channel != "TELEBIRR" && channel != "CBE") return
             preferences.edit().putString("channel", channel).apply()
             ActivityLog.add(this@MainActivity, "info", "Channel set to ${channelLabel(channel)}")
+            pushState()
+        }
+
+        /**
+         * Persists the onboarding login for [channel] into SharedPreferences("ussd"),
+         * the same store the polling and accessibility services read, so the saved
+         * phone and PIN are available to the automated USSD session.
+         * Credentials.save() re-validates on the native side: the WebView is not
+         * a trust boundary, and the PIN never comes back out to the page.
+         */
+        @JavascriptInterface
+        fun setCredentials(channel: String, phone: String, pin: String) {
+            if (channel != "TELEBIRR" && channel != "CBE") return
+            val normalized = Credentials.save(this@MainActivity, channel, phone, pin)
+            if (normalized == null) {
+                ActivityLog.add(this@MainActivity, "error", "Login rejected · check the phone number and PIN")
+                pushState()
+                return
+            }
+            ActivityLog.add(this@MainActivity, "success", "Logged in to ${channelLabel(channel)} · +251 $normalized")
+            pushState()
+        }
+
+        /** Wipes the stored login so the next launch runs onboarding again. */
+        @JavascriptInterface
+        fun clearCredentials() {
+            Credentials.clear(this@MainActivity)
+            ActivityLog.add(this@MainActivity, "info", "Channel login cleared")
             pushState()
         }
 
@@ -243,7 +281,6 @@ class MainActivity : ComponentActivity() {
     private fun callPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
     private fun simPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
     private fun channelLabel(channel: String) = if (channel == "CBE") "CBE Birr" else "Telebirr"
-
     private fun accessibilityEnabled(): Boolean {
         val manager = getSystemService(AccessibilityManager::class.java)
         return manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any { service ->

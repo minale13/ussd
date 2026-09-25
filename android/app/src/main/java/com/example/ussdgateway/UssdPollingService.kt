@@ -65,6 +65,12 @@ class UssdPollingService : Service() {
         val providerId = withdrawal.provider_transaction_id ?: "USSD-${withdrawal.transaction_id}"
         prefs.edit().putString("provider_transaction_id", providerId).putString("destination", withdrawal.destination).putString("amount", withdrawal.amount).apply()
         val channel = withdrawal.channel ?: prefs.getString("channel", "TELEBIRR") ?: "TELEBIRR"
+        // The USSD session authenticates with the account saved during onboarding,
+        // so a payout must not be dialled before that login exists.
+        if (!Credentials.isConfigured(this)) {
+            ActivityLog.add(this, "error", "Payout skipped · open the app and sign in to your channel first")
+            return
+        }
         val simSlot = prefs.getInt("sim_slot", 0)
         val prefix = if (channel == "CBE") "*889#" else BuildConfig.USSD_PREFIX
         val code = "$prefix*${withdrawal.destination}*${withdrawal.amount}#"

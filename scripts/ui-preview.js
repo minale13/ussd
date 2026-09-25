@@ -6,10 +6,11 @@
  * injected at serve time (the committed HTML file is never modified):
  *
  *  1. A mock `window.AndroidGateway` bridge so every control (start/stop,
- *     channel, SIM selection, permission buttons) works in the browser with a
- *     realistic in-memory state — no device needed. Query params override the
- *     initial state for design review:
+ *     channel, SIM selection, permission buttons, onboarding login) works in the
+ *     browser with a realistic in-memory state — no device needed. Query params
+ *     override the initial state for design review:
  *       ?running=1  &a11y=0  &phone=0  &sim=0  &channel=CBE  &slot=1  &empty=1
+ *       &login=0911234567   (skip onboarding, start already signed in)
  *  2. An SSE live-reload client; the server watches dashboard.html and
  *     tailwind.css and pushes `reload` on change.
  *
@@ -67,8 +68,18 @@ const MOCK_BRIDGE = `<script>
       { slot: 0, label: "SIM 1", carrier: "Ethio Telecom", ready: true },
       { slot: 1, label: "SIM 2", carrier: "Safaricom", ready: true }
     ],
+    /* Empty object means "no login saved" -> the page opens on onboarding.
+       ?login=0911234567 seeds one so the dashboard can be reviewed directly. */
+    credentials: {},
     logs: []
   };
+  if (q.get("login")) {
+    state.credentials = {
+      channel: state.channel,
+      phone: q.get("login").replace(/\D/g, ""),
+      savedAt: Date.now()
+    };
+  }
   if (!flag("empty", false)) {
     var now = Date.now();
     state.logs = [
@@ -95,6 +106,34 @@ const MOCK_BRIDGE = `<script>
       if (c !== "TELEBIRR" && c !== "CBE") return;
       state.channel = c;
       addLog("info", "Channel set to " + channelLabel(c));
+      push();
+    },
+    /* Mirrors MainActivity.DashboardBridge.setCredentials: persists the phone
+       and PIN, and reports them back through getState() (phone only). */
+    setCredentials: function (channel, phone, pin) {
+      if (channel !== "TELEBIRR" && channel !== "CBE") return;
+      var digits = String(phone || "").replace(/\D/g, "");
+      if (digits.indexOf("251") === 0) digits = digits.slice(3);
+      if (digits.length === 9 && digits.charAt(0) === "9") digits = "0" + digits;
+      if (digits.length !== 10 || digits.charAt(0) !== "0" || (digits[1] !== "9" && digits[1] !== "7")) {
+        addLog("error", "Login rejected · invalid phone number");
+        push();
+        return;
+      }
+      var trimmed = String(pin || "").trim();
+      if (trimmed.length < 4) {
+        addLog("error", "Login rejected · PIN too short");
+        push();
+        return;
+      }
+      state.channel = channel;
+      state.credentials = { channel: channel, phone: digits, pin: trimmed, savedAt: Date.now() };
+      addLog("success", "Logged in to " + channelLabel(channel) + " · +251 " + digits);
+      push();
+    },
+    clearCredentials: function () {
+      state.credentials = {};
+      addLog("info", "Channel login cleared");
       push();
     },
     setSim: function (slot) {

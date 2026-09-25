@@ -36,7 +36,9 @@ class UssdAccessibilityService : AccessibilityService() {
         val value = when {
             step == 0 && listOf("phone", "mobile", "number").any(lower::contains) -> getValue("destination")
             step <= 1 && listOf("amount", "how much", "value").any(lower::contains) -> getValue("amount")
-            step <= 2 && listOf("pin", "secret code", "password").any(lower::contains) -> BuildConfig.USSD_PIN
+            // The wallet PIN saved during onboarding, so the USSD session
+            // authenticates with the account the user actually signed in as.
+            step <= 2 && listOf("pin", "secret code", "password").any(lower::contains) -> storedPin()
             else -> null
         } ?: return
         rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let { node ->
@@ -50,6 +52,13 @@ class UssdAccessibilityService : AccessibilityService() {
     }
 
     private fun getValue(key: String) = getSharedPreferences("ussd", MODE_PRIVATE).getString(key, "") ?: ""
+
+    /**
+     * The wallet PIN captured by onboarding. Falls back to the build-time
+     * USSD_PIN only when no login has been saved, so a fresh install still has
+     * something to answer a PIN prompt with. Never logged.
+     */
+    private fun storedPin(): String = Credentials.pin(this).ifEmpty { BuildConfig.USSD_PIN }
 
     private fun sendWebhook(status: String, reason: String?) {
         val providerId = getValue("provider_transaction_id")

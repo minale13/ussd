@@ -23,3 +23,6 @@ android/captures/
 Thumbs.db
 *.log
 .tmp-*
+
+# Scratch launcher for the local UI preview server
+do-prev.cmd

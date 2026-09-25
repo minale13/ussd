@@ -37,6 +37,46 @@ The development authentication boundary currently accepts `x-user-id` so the pay
 
 ## Android gateway and administration
 
+### Channel onboarding
+
+The dashboard opens on a channel picker with the two supported wallets — **Telebirr**
+and **CBE Birr** — each using its official mark and accent colour (Telebirr blue
+`#0172bb`, CBE green `#007C4A` with gold `#F5C518`). Picking one renders a
+branded login form asking for the wallet phone number (a fixed `+251` prefix is
+shown, the number itself is entered without it) and the PIN/password. The form
+is re-themed at runtime through the `--brand` CSS variables, so both channels
+share one code path.
+
+The overlay is a gate: no payout can be dialled before a login exists, so
+`UssdPollingService` skips work and logs `Payout skipped · open the app and sign
+in to your channel first` until `Credentials.isConfigured()` is true. Re-open the
+flow at any time from the `Channel login` row on the dashboard or in Settings.
+
+Credentials are stored in the app-private `SharedPreferences("ussd")` via
+`Credentials`:
+
+| Key | Contents |
+| --- | --- |
+| `login_phone` | Normalised local number, `09XXXXXXXX` |
+| `login_pin` | The wallet PIN |
+| `login_saved_at` | Epoch millis of the last save |
+| `channel` | `TELEBIRR` or `CBE` |
+
+`Credentials.save()` re-validates on the native side — the WebView is not a trust
+boundary. `UssdAccessibilityService` reads the stored PIN when it answers a USSD
+PIN prompt, falling back to the build-time `USSD_PIN` only when nothing is saved.
+The page mirrors the channel and phone to `localStorage` under `ussd.credentials`
+so the form survives a reload; **the PIN is deliberately never written to
+`localStorage`**, and `getState()` returns only the channel and phone, so the
+WebView cannot read the PIN back.
+
+Phone numbers are normalised identically on both sides (`+251…`, `251…`, `9…` and
+`0…` all resolve to the local 10 digit form; only `07`/`09` prefixes are
+accepted). `tests/dashboard-onboarding.test.ts` pins that contract so the page
+and `Credentials.normalizePhone()` cannot drift apart.
+
+### Device polling and administration
+
 Run every SQL file in `migrations/` with `npm run db:migrate`, then replace `ADMIN_API_KEY` in `.env` with a strong secret. The Android gateway sends `x-device-id` (the phone's stable `ANDROID_ID`) and `x-phone-model` while polling `GET /api/withdrawals/pending`; blocked devices receive `403` and cannot claim withdrawals. Device records are created on first poll.
 
 Manual payouts can be pinned to a single phone. `POST /api/admin/withdrawals` accepts an optional `targetDeviceId` that is either a registered device id or `"ANY"`; an omitted, blank or `"ANY"` value means auto-assignment and is stored as `NULL` in `withdrawals.target_device_id` (migration `004_target_device.sql`). `GET /api/withdrawals/pending` only returns payouts whose target is `NULL`, `"ANY"` or the polling device, so the Android app keeps sending its own device id to receive targeted work. Targeting an unregistered device returns `404`, targeting a blocked device returns `409`, and a targeted payout stays `PENDING` until that exact device polls.
