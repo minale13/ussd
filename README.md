@@ -52,7 +52,9 @@ When PostgreSQL and Redis are unavailable locally, keep `LOCAL_INFRA_FALLBACK=tr
 Regenerate it only if the file is lost — a new key changes the signature, so the app has to be uninstalled once before the next install:
 
 ```bash
-keytool -genkeypair -v -keystore app/keystore.jks -storetype JKS \
+# Run from the repository root; CI reads the same file as app/keystore.jks
+# from its android/ working directory.
+keytool -genkeypair -v -keystore android/app/keystore.jks -storetype JKS \
   -storepass android -keypass android -alias androiddebugkey \
   -keyalg RSA -keysize 2048 -validity 10000 \
   -dname "CN=Android Debug,O=Android,C=US"
