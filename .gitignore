@@ -14,6 +14,9 @@ android/captures/
 *.aab
 *.keystore
 *.jks
+# The fixed signing key is committed on purpose so local and CI builds share
+# one signature and an installed APK can be updated in place.
+!android/app/keystore.jks
 
 # OS / editor / temp
 .DS_Store

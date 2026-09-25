@@ -20,6 +20,12 @@ env:
   GRADLE_VERSION: '8.11.1'
   ANDROID_COMPILE_SDK: '35'
   ANDROID_BUILD_TOOLS: '35.0.0'
+  # Fixed signing key committed at android/app/keystore.jks (see
+  # android/app/build.gradle.kts). Every APK must carry this signature so an
+  # installed copy can be updated in place instead of being uninstalled first.
+  KEYSTORE_FILE: 'app/keystore.jks'
+  KEYSTORE_ALIAS: 'androiddebugkey'
+  KEYSTORE_PASSWORD: 'android'
 
 jobs:
   build-debug-apk:
@@ -48,6 +54,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Verify the signing keystore
+        run: |
+          # The keystore is committed with the repository, so a missing file
+          # means the checkout or .gitignore is wrong: stop before Gradle runs.
+          test -f "${KEYSTORE_FILE}" || { echo "::error::${KEYSTORE_FILE} not found in $(pwd)"; exit 1; }
+          keytool -list -v -keystore "${KEYSTORE_FILE}" -storepass "${KEYSTORE_PASSWORD}" -alias "${KEYSTORE_ALIAS}" \
+            | grep -E 'Alias name:|Valid from:|SHA256:' \
+            || { echo "::error::Cannot read alias ${KEYSTORE_ALIAS} from ${KEYSTORE_FILE}"; exit 1; }
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -122,6 +137,33 @@ jobs:
           # Dependency-graph submission needs a write-scoped token; this job stays read-only.
           GITHUB_DEPENDENCY_GRAPH_ENABLED: 'false'
         run: ./gradlew assembleDebug --stacktrace
+
+      - name: Verify the APK signature
+        run: |
+          # The private key never leaves android/app/keystore.jks, so compare the
+          # certificate digests: matching digests prove the APK carries the fixed
+          # signature and installs over an existing copy of the app.
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -f "${apk}" || { echo "::error::${apk} was not produced"; exit 1; }
+
+          apksigner="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
+          keystore_sha256="$(keytool -list -v -keystore "${KEYSTORE_FILE}" -storepass "${KEYSTORE_PASSWORD}" -alias "${KEYSTORE_ALIAS}" \
+            | sed -n 's/.*SHA256: //p' | head -n 1 | tr -d ': ' | tr 'A-Z' 'a-z')"
+          apk_sha256="$("${apksigner}" verify --print-certs "${apk}" \
+            | sed -n 's/.*SHA-256 digest: //p' | head -n 1 | tr -d ' ' | tr 'A-Z' 'a-z')"
+
+          echo "keystore certificate SHA-256:   ${keystore_sha256}"
+          echo "APK signer certificate SHA-256: ${apk_sha256}"
+          if [ -z "${keystore_sha256}" ] || [ -z "${apk_sha256}" ]; then
+            echo "::error::Could not read a certificate digest from the keystore or the APK"
+            exit 1
+          fi
+          if [ "${keystore_sha256}" != "${apk_sha256}" ]; then
+            echo "::error::APK is not signed with android/app/keystore.jks"
+            exit 1
+          fi
+
+          "${apksigner}" verify --verbose "${apk}"
 
       - name: Show build output
         run: ls -lh app/build/outputs/apk/debug/

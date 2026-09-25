@@ -3,6 +3,14 @@ plugins {
     kotlin("android")
 }
 
+// Fixed debug/release signing key, committed on purpose so APKs built locally
+// and in CI share one signature and can be updated in place on a device.
+val sharedKeystore = file("keystore.jks")
+require(sharedKeystore.isFile) {
+    "android/app/keystore.jks is missing; without the fixed signing key APKs can no longer be " +
+        "updated in place. Regenerate it with keytool (see README, \"Android signing key\")."
+}
+
 android {
     namespace = "com.example.ussdgateway"
     compileSdk = 35
@@ -18,6 +26,23 @@ android {
         buildConfigField("String", "WEBHOOK_SECRET", "\"replace-with-payment-webhook-secret\"")
         buildConfigField("String", "USSD_PREFIX", "\"*806\"")
         buildConfigField("String", "USSD_PIN", "\"replace-with-ussd-pin\"")
+    }
+
+    signingConfigs {
+        create("shared") {
+            storeFile = sharedKeystore
+            storeType = "JKS"
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        // Debug and release intentionally share this signature, so a new build
+        // replaces an installed copy of the other variant without uninstalling.
+        getByName("debug") { signingConfig = signingConfigs.getByName("shared") }
+        getByName("release") { signingConfig = signingConfigs.getByName("shared") }
     }
 
     buildFeatures { buildConfig = true }

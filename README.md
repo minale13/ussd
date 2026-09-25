@@ -45,6 +45,19 @@ The admin dashboard is available at `/admin`. Enter the admin key in the page to
 
 When PostgreSQL and Redis are unavailable locally, keep `LOCAL_INFRA_FALLBACK=true` to start the API in degraded mode. The API will report `degraded` from `/health` and will not start the outbox publisher; withdrawal persistence and queue processing remain unavailable until infrastructure is running. Set `LOCAL_INFRA_FALLBACK=false` when using real local infrastructure, and never enable it in production.
 
+### Android signing key
+
+`android/app/keystore.jks` is a fixed JKS keystore that signs both the debug and the release build, so the APK published by the `Android Build` workflow and a local `./gradlew assembleDebug` carry the same certificate and a newer build installs over an existing install instead of requiring an uninstall. Alias `androiddebugkey`, store and key password `android`.
+
+Regenerate it only if the file is lost — a new key changes the signature, so the app has to be uninstalled once before the next install:
+
+```bash
+keytool -genkeypair -v -keystore app/keystore.jks -storetype JKS \
+  -storepass android -keypass android -alias androiddebugkey \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=Android Debug,O=Android,C=US"
+```
+
 ## API
 
 ```text
