@@ -22,6 +22,10 @@
   }
   .pick input:checked + .pick-face .pick-name { color: #ecfdf5; }
 
+  body.modal-open { overflow: hidden; }
+  body.active-mode header { justify-content: flex-end; padding-top: 2rem; }
+  body.active-mode #status-pill { border: 0; background: transparent; padding: 0; }
+
   #active-view { min-height: calc(100svh - 6rem); }
   .listening-orb {
     position: relative;
@@ -58,7 +62,96 @@
     50% { transform: scale(1.04); box-shadow: 0 0 0 2rem rgba(16, 185, 129, 0.04), 0 0 6rem rgba(16, 185, 129, 0.38), inset 0 0 3rem rgba(52, 211, 153, 0.26); }
   }
 </style>
-</head>
+<script>
+/* UI preview harness — served only by scripts/ui-preview.js, never committed. */
+(function () {
+  "use strict";
+  window.__PREVIEW__ = true;
+  var q = new URLSearchParams(location.search);
+  function flag(name, dflt) { return q.has(name) ? q.get(name) !== "0" : dflt; }
+  function channelLabel(c) { return c === "CBE" ? "CBE Birr" : "Telebirr"; }
+
+  var state = {
+    running: flag("running", false),
+    channel: q.get("channel") === "CBE" ? "CBE" : "TELEBIRR",
+    simSlot: q.has("slot") ? Math.max(0, Math.min(3, parseInt(q.get("slot"), 10) || 0)) : 0,
+    accessibility: flag("a11y", true),
+    callPermission: flag("phone", true),
+    simPermission: flag("sim", true),
+    sims: [
+      { slot: 0, label: "SIM 1", carrier: "Ethio Telecom", ready: true },
+      { slot: 1, label: "SIM 2", carrier: "Safaricom", ready: true }
+    ],
+    logs: []
+  };
+  if (!flag("empty", false)) {
+    var now = Date.now();
+    state.logs = [
+      { t: now - 120000, kind: "success", msg: "Gateway started · Telebirr · SIM 1" },
+      { t: now - 60000, kind: "info", msg: "Payouts routed through SIM 1" },
+      { t: now - 5000, kind: "info", msg: "Channel set to Telebirr" }
+    ];
+  }
+
+  function addLog(kind, msg) {
+    state.logs.push({ t: Date.now(), kind: kind, msg: msg });
+    if (state.logs.length > 40) state.logs.shift();
+  }
+  // Kotlin's pushState() ends in evaluateJavascript("refresh()"); mirror that.
+  function push() {
+    setTimeout(function () {
+      if (typeof window.refresh === "function") window.refresh();
+    }, 0);
+  }
+
+  window.AndroidGateway = {
+    getState: function () { return JSON.stringify(state); },
+    setChannel: function (c) {
+      if (c !== "TELEBIRR" && c !== "CBE") return;
+      state.channel = c;
+      addLog("info", "Channel set to " + channelLabel(c));
+      push();
+    },
+    setSim: function (slot) {
+      if (slot < 0 || slot > 3) return;
+      state.simSlot = slot;
+      addLog("info", "Payouts routed through SIM " + (slot + 1));
+      push();
+    },
+    startGateway: function () {
+      if (state.running) { push(); return; }
+      state.running = true;
+      addLog("success", "Gateway started · " + channelLabel(state.channel) + " · SIM " + (state.simSlot + 1));
+      push();
+    },
+    stopGateway: function () {
+      state.running = false;
+      addLog("info", "Gateway stopped");
+      push();
+    },
+    /* In the browser these "grant" the permission so the flow is walkable. */
+    openAccessibilitySettings: function () {
+      state.accessibility = true;
+      addLog("info", "Accessibility permission granted (preview)");
+      push();
+    },
+    openAppSettings: function () {
+      state.callPermission = true;
+      state.simPermission = true;
+      addLog("info", "Phone & SIM permissions granted (preview)");
+      push();
+    }
+  };
+})();
+</script><script>
+(function () {
+  if (!window.EventSource) return;
+  var es = new EventSource("/__livereload");
+  es.onmessage = function (e) {
+    if (e.data === "reload") location.reload();
+  };
+})();
+</script></head>
 <body class="min-h-screen bg-[#0A1228] text-slate-100 antialiased selection:bg-emerald-400/30 selection:text-emerald-50">
   <!-- Ambient gradient so the flat navy gains some depth -->
   <div class="pointer-events-none fixed inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,#14264d_0%,#0A1228_55%)]"></div>
