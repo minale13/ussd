@@ -61,7 +61,11 @@ class UssdAccessibilityService : AccessibilityService() {
         }
         scope.launch {
             val request = Request.Builder().url(BuildConfig.API_BASE_URL + "api/webhooks/payment").addHeader("x-provider-signature", "sha256=${hmac(body)}").post(body.toRequestBody("application/json".toMediaType())).build()
-            client.newCall(request).execute().use { }
+            val delivered = runCatching { client.newCall(request).execute().use { it.isSuccessful } }.getOrDefault(false)
+            val failed = status == "FAILED"
+            val kind = if (failed || !delivered) "error" else "success"
+            val suffix = if (delivered) "" else " · webhook not delivered"
+            ActivityLog.add(this@UssdAccessibilityService, kind, "Payout ${if (failed) "failed" else "completed"} · $providerId$suffix")
         }
     }
 

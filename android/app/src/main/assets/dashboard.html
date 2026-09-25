@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>USSD Gateway</title>
+<link rel="stylesheet" href="tailwind.css">
+<style>
+  /* Hand-written layers Tailwind does not ship: tap highlight suppression and the
+     radio-card :checked face (the dot lives inside the face, so sibling-only
+     peer-checked utilities cannot reach it). */
+  * { -webkit-tap-highlight-color: transparent; }
+  .pick input:checked + .pick-face {
+    border-color: rgba(16, 185, 129, 0.85);
+    background: rgba(16, 185, 129, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.40);
+  }
+  .pick input:checked + .pick-face .pick-dot {
+    background: #34d399;
+    border-color: #34d399;
+    box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.18);
+  }
+  .pick input:checked + .pick-face .pick-name { color: #ecfdf5; }
+</style>
+</head>
+<body class="min-h-screen bg-[#0A1228] text-slate-100 antialiased selection:bg-emerald-400/30 selection:text-emerald-50">
+  <!-- Ambient gradient so the flat navy gains some depth -->
+  <div class="pointer-events-none fixed inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,#14264d_0%,#0A1228_55%)]"></div>
+
+  <div class="relative mx-auto w-full max-w-md px-4 pb-12">
+    <!-- top bar -->
+    <header class="flex items-center justify-between pt-8">
+      <div class="flex items-center gap-3">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 shadow-lg shadow-emerald-500/25">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-[#052e21]">
+            <path d="M4 16.5l4.5-4.5 3 3L19 7.5" />
+            <path d="M14.5 7.5H19V12" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-[15px] font-semibold leading-tight tracking-tight text-white">USSD Gateway</p>
+          <p class="text-[11px] leading-tight text-slate-400">Ethiopia &middot; mobile money payouts</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+        <span id="status-dot" class="h-2 w-2 rounded-full bg-slate-500"></span>
+        <span id="status-label" class="text-xs font-semibold tracking-wide text-slate-300">Idle</span>
+      </div>
+    </header>
+
+    <!-- hero status card -->
+    <section class="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#122145] to-[#0b1531] p-5 shadow-2xl shadow-black/50">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Gateway status</p>
+          <p id="hero-state" class="mt-1.5 text-3xl font-bold tracking-tight text-white">Stopped</p>
+          <p id="hero-sub" class="mt-1 text-[13px] leading-snug text-slate-400">Start the gateway to begin polling</p>
+        </div>
+        <span id="hero-badge" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">Idle</span>
+      </div>
+
+      <div class="mt-5 grid grid-cols-2 gap-3">
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Channel</p>
+          <p id="stat-channel" class="mt-1 truncate text-sm font-semibold text-white">Telebirr</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
+          <p id="stat-sim" class="mt-1 truncate text-sm font-semibold text-white">SIM 1</p>
+        </div>
+      </div>
+
+      <button id="action-btn" class="mt-5 w-full rounded-2xl bg-emerald-500 py-3.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#052e16] shadow-lg shadow-emerald-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
+        Start gateway
+      </button>
+      <p id="action-hint" class="mt-2 hidden text-center text-[12px] font-medium text-amber-300"></p>
+    </section>
+    <!-- permission banner (shown only when something is missing) -->
+    <section id="perm-banner" class="mt-4 hidden rounded-3xl border border-amber-400/30 bg-amber-400/10 p-4">
+      <div class="flex items-start gap-3">
+        <span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-400/20 text-[13px] font-bold text-amber-300">!</span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[13px] font-semibold text-amber-200">Permissions missing</p>
+          <p id="perm-detail" class="mt-1 text-xs leading-relaxed text-amber-200/80">Accessibility drives the USSD menus; phone and SIM access place the call on your chosen card.</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button id="perm-a11y" class="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-amber-100">Accessibility</button>
+            <button id="perm-sys" class="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-amber-100">App permissions</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- payout settings -->
+    <section class="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-[13px] font-bold uppercase tracking-[0.16em] text-white">Payout settings</p>
+        <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Saved automatically</span>
+      </div>
+
+      <p class="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment channel</p>
+      <div class="mt-2 grid grid-cols-2 gap-3">
+        <label class="pick cursor-pointer">
+          <input type="radio" name="channel" value="TELEBIRR" class="sr-only" checked>
+          <span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">
+            <span class="flex items-center gap-2.5">
+              <span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span>
+              <span class="pick-name text-sm font-semibold text-slate-200">Telebirr</span>
+            </span>
+            <span class="mt-1 block pl-6 text-[10px] text-slate-400">Ethio Telecom wallet</span>
+          </span>
+        </label>
+        <label class="pick cursor-pointer">
+          <input type="radio" name="channel" value="CBE" class="sr-only">
+          <span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">
+            <span class="flex items-center gap-2.5">
+              <span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span>
+              <span class="pick-name text-sm font-semibold text-slate-200">CBE Birr</span>
+            </span>
+            <span class="mt-1 block pl-6 text-[10px] text-slate-400">Commercial Bank of Ethiopia</span>
+          </span>
+        </label>
+      </div>
+
+      <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
+      <div id="sim-list" class="mt-2 grid gap-3"></div>
+      <p class="mt-2 text-[10px] leading-relaxed text-slate-500">USSD payout calls are placed on the selected card.</p>
+    </section>
+    <!-- activity feed -->
+    <section class="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-[13px] font-bold uppercase tracking-[0.16em] text-white">Activity</p>
+        <span id="log-count" class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">No events</span>
+      </div>
+      <ul id="log-list" class="mt-4"></ul>
+      <p id="log-empty" class="mt-3 text-xs text-slate-500">No activity yet &mdash; events appear here once the gateway runs.</p>
+    </section>
+
+    <p class="mt-6 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
+      Runs as a foreground service &middot; payouts keep flowing in the background
+    </p>
+    <script>
+      // Android injects `AndroidGateway` (MainActivity.DashboardBridge) before the
+      // page loads. When opened outside the app a synthetic `window.__DEMO__` state
+      // is used instead so refresh() still renders (validation harness).
+      var bridge = window.AndroidGateway || null;
+      var lastSimsSig = "";
+      var lastLogsSig = "";
+
+      function esc(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function call(method, arg) {
+        if (!bridge) return null;
+        try {
+          return arg === undefined ? bridge[method]() : bridge[method](arg);
+        } catch (err) {
+          console.warn(method, err);
+          return null;
+        }
+      }
+
+      function channelLabel(channel) {
+        return channel === "CBE" ? "CBE Birr" : "Telebirr";
+      }
+
+      function fetchState() {
+        var raw = call("getState");
+        if (raw) {
+          try { return JSON.parse(raw); } catch (err) { console.warn("bad state", err); }
+        }
+        return window.__DEMO__ || null;
+      }
+
+      function simFace(slot, checked) {
+        var sub = slot.carrier
+          ? '<span class="mt-1 block truncate pl-6 text-[10px] text-slate-400">' + esc(slot.carrier) + "</span>"
+          : '<span class="mt-1 block pl-6 text-[10px] text-slate-500">' + (slot.ready ? "Ready" : "Not detected") + "</span>";
+        return (
+          '<label class="pick cursor-pointer' + (slot.ready ? "" : " opacity-60") + '">' +
+            '<input type="radio" name="simsel" value="' + slot.slot + '" class="sr-only"' + (checked ? " checked" : "") + ">" +
+            '<span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">' +
+              '<span class="flex items-center gap-2.5">' +
+                '<span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span>' +
+                '<span class="pick-name text-sm font-semibold text-slate-200">' + esc(slot.label) + "</span>" +
+              "</span>" + sub +
+            "</span>" +
+          "</label>"
+        );
+      }
+
+      function bindSimRadios() {
+        var inputs = document.querySelectorAll('input[name="simsel"]');
+        for (var i = 0; i < inputs.length; i++) {
+          inputs[i].addEventListener("change", function (ev) { call("setSim", Number(ev.target.value)); });
+        }
+      }
+
+      function renderSims(sims, selected) {
+        var sig = JSON.stringify(sims);
+        if (sig !== lastSimsSig) {
+          lastSimsSig = sig;
+          document.getElementById("sim-list").innerHTML = sims
+            .map(function (s) { return simFace(s, Number(s.slot) === selected); })
+            .join("");
+          bindSimRadios();
+        }
+        var inputs = document.querySelectorAll('input[name="simsel"]');
+        for (var i = 0; i < inputs.length; i++) {
+          inputs[i].checked = Number(inputs[i].value) === selected;
+        }
+      }
+
+      function renderLogs(logs) {
+        document.getElementById("log-count").textContent = logs.length
+          ? logs.length + (logs.length === 1 ? " event" : " events")
+          : "No events";
+        var sig = JSON.stringify(logs);
+        if (sig === lastLogsSig) return;
+        lastLogsSig = sig;
+        var empty = document.getElementById("log-empty");
+        var list = document.getElementById("log-list");
+        if (!logs.length) {
+          empty.classList.remove("hidden");
+          list.innerHTML = "";
+          return;
+        }
+        empty.classList.add("hidden");
+        var dots = {
+          success: "bg-emerald-400 ring-emerald-400/10",
+          error: "bg-rose-400 ring-rose-400/10",
+          info: "bg-sky-400 ring-sky-400/10"
+        };
+        var shown = logs.slice(-14).reverse();
+        list.innerHTML = shown.map(function (log, index) {
+          var dot = dots[log.kind] || dots.info;
+          var time = new Date(log.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+          var tail = index < shown.length - 1 ? '<span class="mt-1 w-px flex-1 bg-white/10"></span>' : "";
+          return (
+            '<li class="flex gap-3">' +
+              '<div class="flex flex-col items-center self-stretch">' +
+                '<span class="h-2.5 w-2.5 shrink-0 rounded-full ring-4 ' + dot + '"></span>' + tail +
+              "</div>" +
+              '<div class="min-w-0 flex-1 pb-3">' +
+                '<p class="text-xs font-medium leading-snug text-slate-200">' + esc(log.msg) + "</p>" +
+                '<p class="mt-0.5 text-[10px] text-slate-500">' + time + "</p>" +
+              "</div>" +
+            "</li>"
+          );
+        }).join("");
+      }
+      function render(s) {
+        var running = !!s.running;
+        var a11y = !!s.accessibility;
+        var callPerm = !!s.callPermission;
+        var simPerm = !!s.simPermission;
+        var ready = a11y && callPerm && simPerm;
+        var simSlot = Number(s.simSlot) || 0;
+        var channel = s.channel === "CBE" ? "CBE" : "TELEBIRR";
+
+        // header badge: Active / Idle
+        var dot = document.getElementById("status-dot");
+        dot.className = running
+          ? "h-2 w-2 animate-pulse rounded-full bg-emerald-400"
+          : "h-2 w-2 rounded-full bg-slate-500";
+        var label = document.getElementById("status-label");
+        label.textContent = running ? "Active" : "Idle";
+        label.className = running
+          ? "text-xs font-semibold tracking-wide text-emerald-300"
+          : "text-xs font-semibold tracking-wide text-slate-300";
+
+        // hero card
+        document.getElementById("hero-state").textContent = running ? "Active" : "Stopped";
+        document.getElementById("hero-sub").textContent = running
+          ? "Polling every 5s for pending withdrawals"
+          : "Start the gateway to begin polling";
+        var badge = document.getElementById("hero-badge");
+        badge.textContent = running ? "Live" : "Idle";
+        badge.className = running
+          ? "shrink-0 rounded-full bg-emerald-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300"
+          : "shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300";
+
+        // stat chips: channel + SIM
+        document.getElementById("stat-channel").textContent = channelLabel(channel);
+        var simName = "SIM " + (simSlot + 1);
+        var sims = s.sims || [];
+        for (var i = 0; i < sims.length; i++) {
+          if (Number(sims[i].slot) === simSlot && sims[i].carrier) {
+            simName = "SIM " + (simSlot + 1) + " · " + sims[i].carrier;
+            break;
+          }
+        }
+        document.getElementById("stat-sim").textContent = simName;
+
+        // primary action button
+        var action = document.getElementById("action-btn");
+        var hint = document.getElementById("action-hint");
+        action.textContent = running ? "Stop gateway" : "Start gateway";
+        action.className = running
+          ? "mt-5 w-full rounded-2xl bg-rose-500 py-3.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#450a14] shadow-lg shadow-rose-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+          : "mt-5 w-full rounded-2xl bg-emerald-500 py-3.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#052e16] shadow-lg shadow-emerald-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40";
+        action.disabled = !running && !ready;
+        if (running) {
+          hint.classList.add("hidden");
+        } else if (!ready) {
+          var missing = [];
+          if (!a11y) missing.push("accessibility");
+          if (!callPerm) missing.push("phone");
+          if (!simPerm) missing.push("SIM");
+          hint.textContent = "Grant " + missing.join(", ") + " permission to start";
+          hint.classList.remove("hidden");
+        } else {
+          hint.classList.add("hidden");
+        }
+
+        // permission banner
+        var banner = document.getElementById("perm-banner");
+        if (ready) {
+          banner.classList.add("hidden");
+        } else {
+          banner.classList.remove("hidden");
+          document.getElementById("perm-a11y").classList.toggle("hidden", a11y);
+          document.getElementById("perm-detail").textContent = a11y
+            ? "Android must allow phone and SIM access before payouts can run."
+            : "Accessibility drives the USSD menus; phone and SIM access place the call on your chosen card.";
+        }
+
+        // channel radios
+        var channelInputs = document.querySelectorAll('input[name="channel"]');
+        for (var j = 0; j < channelInputs.length; j++) {
+          channelInputs[j].checked = channelInputs[j].value === channel;
+        }
+
+        renderSims(sims, simSlot);
+        renderLogs(s.logs || []);
+      }
+
+      // ---- events ---------------------------------------------------------
+      document.getElementById("action-btn").addEventListener("click", function () {
+        var s = fetchState();
+        if (s && s.running) call("stopGateway"); else call("startGateway");
+        setTimeout(refresh, 150);
+      });
+      var channelInputs = document.querySelectorAll('input[name="channel"]');
+      for (var k = 0; k < channelInputs.length; k++) {
+        channelInputs[k].addEventListener("change", function (ev) { call("setChannel", ev.target.value); });
+      }
+      document.getElementById("perm-a11y").addEventListener("click", function () { call("openAccessibilitySettings"); });
+      document.getElementById("perm-sys").addEventListener("click", function () { call("openAppSettings"); });
+
+      // Called from Kotlin via evaluateJavascript("refresh()") after every action,
+      // and by the local polling interval so service-side changes show up too.
+      function refresh() {
+        var s = fetchState();
+        if (s) render(s);
+      }
+
+      refresh();
+      setInterval(refresh, 2500);
+    </script>
+  </div>
+</body>
+</html>
