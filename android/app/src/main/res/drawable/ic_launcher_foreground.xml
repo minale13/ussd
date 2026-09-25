@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher icon mark: an open emerald ring (the gateway portal, with its gap
+  aimed top-right) and a white trend arrow leaving through that gap.
+  Artwork stays inside the adaptive-icon safe zone (radius 36 around 54,54).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Open ring: r=30, 60 degree gap centred on the top-right (-45 degrees). -->
+    <path
+        android:pathData="M82.98,46.24 A30,30 0 1 1 61.76,25.02"
+        android:fillColor="#00000000"
+        android:strokeColor="#2BE1A8"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- Trend line, every segment at 45 degrees for a crisp geometric look. -->
+    <path
+        android:pathData="M36,68 L47,57 L55,65 L69.5,50.5"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Arrow head, right angled at the tip so the line meets it exactly. -->
+    <path
+        android:pathData="M73,47 L59,47 L73,61 Z"
+        android:fillColor="#2BE1A8" />
+</vector>
