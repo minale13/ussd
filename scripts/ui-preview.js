@@ -55,7 +55,7 @@ const MOCK_BRIDGE = `<script>
   window.__PREVIEW__ = true;
   var q = new URLSearchParams(location.search);
   function flag(name, dflt) { return q.has(name) ? q.get(name) !== "0" : dflt; }
-  function channelLabel(c) { return c === "CBE" ? "CBE Birr" : "Telebirr"; }
+  function channelLabel(c) { return c === "CBE" ? "CBE" : "Telebirr"; }
 
   var state = {
     running: flag("running", false),

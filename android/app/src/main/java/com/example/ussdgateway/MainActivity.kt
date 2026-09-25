@@ -280,7 +280,7 @@ class MainActivity : ComponentActivity() {
     private fun permissionsGranted() = accessibilityEnabled() && callPermissionGranted() && simPermissionGranted()
     private fun callPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
     private fun simPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
-    private fun channelLabel(channel: String) = if (channel == "CBE") "CBE Birr" else "Telebirr"
+    private fun channelLabel(channel: String) = if (channel == "CBE") "CBE" else "Telebirr"
     private fun accessibilityEnabled(): Boolean {
         val manager = getSystemService(AccessibilityManager::class.java)
         return manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any { service ->

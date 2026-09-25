@@ -109,13 +109,13 @@ describe('branded login form', () => {
     expect(ui.$('login-logo').innerHTML).toContain('Telebirr logo');
   });
 
-  it('renders a CBE-branded form after picking CBE Birr', () => {
+  it('renders a CBE-branded form after picking CBE', () => {
     const ui = boot();
     ui.tile('CBE').click();
-    expect(ui.$('login-title').textContent).toBe('Log in to CBE Birr');
+    expect(ui.$('login-title').textContent).toBe('Log in to CBE');
     expect(ui.$('login-pin-label').textContent).toBe('PIN / password');
     expect(ui.$('onboarding').style.getPropertyValue('--brand')).toBe('#007C4A');
-    expect(ui.$('login-logo').innerHTML).toContain('CBE Birr logo');
+    expect(ui.$('login-logo').innerHTML).toContain('CBE logo');
   });
 
   it('returns to the picker from the back button', () => {
@@ -263,9 +263,12 @@ describe('local storage sync', () => {
   it('shows each channel name and ships an official logo for it', () => {
     const ui = boot();
     expect(ui.tile('TELEBIRR').textContent).toContain('Telebirr');
-    expect(ui.tile('CBE').textContent).toContain('CBE Birr');
+    expect(ui.tile('CBE').textContent).toContain('CBE');
+    expect(ui.tile('CBE').textContent).toContain('Commercial Bank of Ethiopia');
     expect(ui.tile('TELEBIRR').innerHTML).toContain('#0172bb');
-    expect(ui.tile('CBE').innerHTML).toContain('#007C4A');
+    // The CBE mark is the golden emblem (#F5C518 family); green stays the
+    // accent colour for the focus ring and submit button.
+    expect(ui.tile('CBE').innerHTML).toContain('#F5C518');
   });
 
   it('does not gate the dashboard when a login is already saved', () => {

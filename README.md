@@ -40,8 +40,9 @@ The development authentication boundary currently accepts `x-user-id` so the pay
 ### Channel onboarding
 
 The dashboard opens on a channel picker with the two supported wallets — **Telebirr**
-and **CBE Birr** — each using its official mark and accent colour (Telebirr blue
-`#0172bb`, CBE green `#007C4A` with gold `#F5C518`). Picking one renders a
+and **CBE** (Commercial Bank of Ethiopia) — each using its official mark and
+accent colour (Telebirr blue `#0172bb`, CBE green `#007C4A` with the golden
+`#F5C518` emblem). Picking one renders a
 branded login form asking for the wallet phone number (a fixed `+251` prefix is
 shown, the number itself is entered without it) and the PIN/password. The form
 is re-themed at runtime through the `--brand` CSS variables, so both channels
