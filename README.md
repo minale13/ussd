@@ -50,9 +50,11 @@ share one code path.
 
 Saving the form is the whole onboarding: `DashboardBridge.setCredentials()`
 persists the login and starts `UssdPollingService` in the same call, so the
-overlay closes straight onto the minimal active view — the pulsing listening
-orb, a brand-tinted channel badge and the settings gear — with no separate
-"Start gateway" step. The overlay stays a gate for everything else: no payout
+overlay closes straight onto the minimal active view — a layered neon-green
+pulse orb above a glass status pill (`TELEBIRR • LIVE` / `CBE • LIVE`, tinted
+with the channel's palette) and the settings gear — with no separate
+"Start gateway" step. The active view carries no secondary copy: the orb alone
+is the state. The overlay stays a gate for everything else: no payout
 can be dialled before a login exists, so `UssdPollingService` skips work and
 logs `Payout skipped · open the app and sign in to your channel first` until
 `Credentials.isConfigured()` is true. Re-open the flow at any time from the

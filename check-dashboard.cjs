@@ -3,8 +3,13 @@ const html = fs.readFileSync("android/app/src/main/assets/dashboard.html", "utf8
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
 if (duplicates.length) throw new Error(`duplicate ids: ${duplicates.join(", ")}`);
-for (const required of ["active-view", "dashboard-content", "settings-btn", "settings-panel", "settings-stop", "sim-list", "listening-orb"]) {
+for (const required of ["active-view", "dashboard-content", "settings-btn", "settings-panel", "settings-stop", "sim-list", "listening-orb", "active-glow", "orb-halo", "status-pill", "pill-live"]) {
   if (!html.includes(required)) throw new Error(`missing ${required}`);
+}
+// The active view is deliberately copy-free: the orb and the glass pill are the
+// whole state, so the old "waiting"/routing line must never come back.
+for (const forbidden of ["active-sub", "Waiting for payout requests"]) {
+  if (html.includes(forbidden)) throw new Error(`active view copy returned: ${forbidden}`);
 }
 // Onboarding: channel picker -> branded login form -> local credential store.
 for (const required of ["onboarding", "onboard-pick", "onboard-login", "login-form", "login-phone", "login-pin", "settings-credentials"]) {

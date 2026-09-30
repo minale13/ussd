@@ -262,11 +262,27 @@ describe('local storage sync', () => {
     expect(ui.visible('onboarding')).toBe(false);
     // Saving a login starts the listener (there is no second configuration
     // step), so the dashboard opens already running and reduced to the orb and
-    // its channel badge.
+    // its glass channel pill.
     expect(ui.visible('active-view')).toBe(true);
     expect(ui.visible('dashboard-content')).toBe(false);
-    expect(ui.$('active-channel').textContent).toContain('CBE');
-    expect(ui.$('active-sub').textContent).toContain('SIM 1');
+    const pill = ui.$('active-channel');
+    expect(pill.className).toContain('status-pill');
+    expect(pill.querySelector('.pill-name')?.textContent).toBe('CBE');
+    expect(pill.querySelector('.pill-live')?.textContent).toBe('Live');
+    // The channel palette reaches the pill through its CSS variables.
+    expect(pill.style.getPropertyValue('--pill-live')).toBe('#5eead4');
+    expect(pill.style.getPropertyValue('--pill-glow')).toBe('rgba(0,124,74,0.32)');
+  });
+
+  it('keeps the active view free of secondary copy', () => {
+    const ui = login('TELEBIRR', '0911234567', '4821');
+    // The orb and the pill are the whole active state: the old "waiting" line
+    // and the SIM routing text are gone for good.
+    expect(ui.$('active-sub')).toBeNull();
+    expect(ui.$('active-view').textContent).not.toContain('Waiting');
+    expect(ui.$('active-view').textContent).not.toContain('SIM');
+    expect(ui.$('active-channel').textContent).toContain('Telebirr');
+    expect(ui.$('active-channel').textContent).toContain('Live');
   });
 
   it('leaves the auto-start to the bridge instead of dialling it from the page', () => {
