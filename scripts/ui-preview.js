@@ -129,6 +129,12 @@ const MOCK_BRIDGE = `<script>
       state.channel = channel;
       state.credentials = { channel: channel, phone: digits, pin: trimmed, savedAt: Date.now() };
       addLog("success", "Logged in to " + channelLabel(channel) + " · +251 " + digits);
+      // The native bridge starts the polling listener inside setCredentials, so a
+      // saved login lands the page on the running dashboard. Mirror that here.
+      if (!state.running) {
+        state.running = true;
+        addLog("success", "Gateway started automatically · " + channelLabel(channel) + " · SIM " + (state.simSlot + 1));
+      }
       push();
     },
     clearCredentials: function () {

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.IBinder
@@ -12,6 +13,7 @@ import android.provider.Settings
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +34,10 @@ class UssdPollingService : Service() {
     override fun onCreate() {
         super.onCreate()
         running = true
+        // Record that the gateway is meant to be up: an explicit stop clears this
+        // again, while a process kill or reboot leaves it set so the service can
+        // come back without the user reopening the app.
+        setActive(this, true)
         val simSlot = getSharedPreferences("ussd", MODE_PRIVATE).getInt("sim_slot", 0)
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("ussd", "USSD Gateway", NotificationManager.IMPORTANCE_LOW))
         startForeground(
@@ -105,11 +111,56 @@ class UssdPollingService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onDestroy() { running = false; scope.cancel(); super.onDestroy() }
+
+    // START_STICKY: when Android reclaims the process it restarts the service, so
+    // a gateway the user left running comes back on its own.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
+    override fun onDestroy() {
+        running = false
+        // Only an explicit stop reaches onDestroy without a process kill, so this
+        // is exactly when the resume flag should be cleared.
+        setActive(this, false)
+        scope.cancel()
+        super.onDestroy()
+    }
 
     companion object {
         /** Read by the dashboard so the header badge reflects the live service state. */
         @Volatile
         var running = false
+
+        private const val PREFS = "ussd"
+        private const val KEY_ACTIVE = "gateway_active"
+
+        /**
+         * True while the gateway is meant to be running. Written by the service,
+         * read by MainActivity and [BootReceiver] to bring polling back after a
+         * process kill or reboot without another tap from the user.
+         */
+        fun shouldResume(context: Context): Boolean = prefs(context).getBoolean(KEY_ACTIVE, false)
+
+        /**
+         * Starts the polling foreground service. A refused start (an OEM that does
+         * not exempt the caller, for example) is logged instead of thrown: losing
+         * the automatic resume must never crash the app.
+         */
+        fun start(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context.applicationContext,
+                    Intent(context.applicationContext, UssdPollingService::class.java),
+                )
+            }.onFailure {
+                ActivityLog.add(context, "error", "Gateway could not start: ${it.message ?: "background start blocked"}")
+            }
+        }
+
+        private fun setActive(context: Context, active: Boolean) {
+            prefs(context).edit().putBoolean(KEY_ACTIVE, active).apply()
+        }
+
+        private fun prefs(context: Context) =
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
 }

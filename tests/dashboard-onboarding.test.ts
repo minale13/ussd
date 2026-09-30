@@ -38,9 +38,14 @@ function boot(options: { credentials?: Record<string, unknown> | null } = {}) {
           calls.push({ method, args });
           if (method === 'setCredentials') {
             const [channel, phone, pin] = args as [string, string, string];
-            state = { ...state, channel, credentials: { channel, phone, pin, savedAt: 1 } };
+            // Mirrors DashboardBridge.setCredentials: the native save also starts
+            // the polling listener, so the snapshot the next refresh reads back is
+            // already running and the page opens on its minimal active view.
+            state = { ...state, running: true, channel, credentials: { channel, phone, pin, savedAt: 1 } };
           }
           if (method === 'setChannel') state = { ...state, channel: args[0] };
+          if (method === 'startGateway') state = { ...state, running: true };
+          if (method === 'stopGateway') state = { ...state, running: false };
           return JSON.stringify(state);
         };
       (window as unknown as Record<string, unknown>).AndroidGateway = {
@@ -250,12 +255,30 @@ describe('local storage sync', () => {
     expect(stored.pin).toBeUndefined();
   });
 
-  it('closes the overlay and reveals the dashboard once saved', async () => {
-    const ui = login('TELEBIRR', '0911234567', '4821');
+  it('closes the overlay onto the minimal active view once saved', async () => {
+    const ui = login('CBE', '0911234567', '4821');
     // The close is deferred so the confirmation is visible first.
     await new Promise((resolve) => ui.window.setTimeout(resolve, 600));
     expect(ui.visible('onboarding')).toBe(false);
-    expect(ui.visible('dashboard-content')).toBe(true);
+    // Saving a login starts the listener (there is no second configuration
+    // step), so the dashboard opens already running and reduced to the orb and
+    // its channel badge.
+    expect(ui.visible('active-view')).toBe(true);
+    expect(ui.visible('dashboard-content')).toBe(false);
+    expect(ui.$('active-channel').textContent).toContain('CBE');
+    expect(ui.$('active-sub').textContent).toContain('SIM 1');
+  });
+
+  it('leaves the auto-start to the bridge instead of dialling it from the page', () => {
+    const ui = login('TELEBIRR', '0911234567', '4821');
+    // The native bridge starts the gateway inside setCredentials; a second call
+    // from here would log "Gateway started" twice on a real device.
+    expect(ui.calls.some((c) => c.method === 'startGateway')).toBe(false);
+    expect(ui.calls.find((c) => c.method === 'setCredentials')?.args).toEqual([
+      'TELEBIRR',
+      '0911234567',
+      '4821',
+    ]);
   });
 });
 

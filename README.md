@@ -48,10 +48,15 @@ shown, the number itself is entered without it) and the PIN/password. The form
 is re-themed at runtime through the `--brand` CSS variables, so both channels
 share one code path.
 
-The overlay is a gate: no payout can be dialled before a login exists, so
-`UssdPollingService` skips work and logs `Payout skipped · open the app and sign
-in to your channel first` until `Credentials.isConfigured()` is true. Re-open the
-flow at any time from the `Channel login` row on the dashboard or in Settings.
+Saving the form is the whole onboarding: `DashboardBridge.setCredentials()`
+persists the login and starts `UssdPollingService` in the same call, so the
+overlay closes straight onto the minimal active view — the pulsing listening
+orb, a brand-tinted channel badge and the settings gear — with no separate
+"Start gateway" step. The overlay stays a gate for everything else: no payout
+can be dialled before a login exists, so `UssdPollingService` skips work and
+logs `Payout skipped · open the app and sign in to your channel first` until
+`Credentials.isConfigured()` is true. Re-open the flow at any time from the
+`Channel login` row on the dashboard or in Settings.
 
 Credentials are stored in the app-private `SharedPreferences("ussd")` via
 `Credentials`:
@@ -62,6 +67,7 @@ Credentials are stored in the app-private `SharedPreferences("ussd")` via
 | `login_pin` | The wallet PIN |
 | `login_saved_at` | Epoch millis of the last save |
 | `channel` | `TELEBIRR` or `CBE` |
+| `gateway_active` | Set while the gateway is meant to be running |
 
 `Credentials.save()` re-validates on the native side — the WebView is not a trust
 boundary. `UssdAccessibilityService` reads the stored PIN when it answers a USSD
@@ -70,6 +76,12 @@ The page mirrors the channel and phone to `localStorage` under `ussd.credentials
 so the form survives a reload; **the PIN is deliberately never written to
 `localStorage`**, and `getState()` returns only the channel and phone, so the
 WebView cannot read the PIN back.
+
+The gateway stays armed on its own. `UssdPollingService` sets `gateway_active`
+while it runs and clears it on an explicit stop, so a process the system
+reclaims is restarted by `START_STICKY`, a reboot is picked up by `BootReceiver`
+(`RECEIVE_BOOT_COMPLETED`), and opening the app resumes polling whenever a saved
+login exists — no tap on "Start gateway" is needed after onboarding.
 
 Phone numbers are normalised identically on both sides (`+251…`, `251…`, `9…` and
 `0…` all resolve to the local 10 digit form; only `07`/`09` prefixes are

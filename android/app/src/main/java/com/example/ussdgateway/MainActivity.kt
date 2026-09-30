@@ -28,6 +28,8 @@ import org.json.JSONObject
  * Dark fintech dashboard host. A three-step permission gate (accessibility, phone
  * calls, SIM access) guards a WebView that renders assets/dashboard.html; the page
  * talks back through [DashboardBridge] to read live state and start/stop the gateway.
+ * Saving an onboarding login starts the polling listener in the same bridge call, and
+ * a gateway that was left running is resumed when the app opens again.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var content: LinearLayout
@@ -139,7 +141,36 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(container)
         dashboardShown = true
+        resumeGatewayIfNeeded()
         if (wv.url == null) wv.loadUrl("file:///android_asset/dashboard.html") else pushState()
+    }
+
+    /**
+     * Brings the polling listener back up when the gateway was left running.
+     * Saving a login (or tapping Start) records `gateway_active`, which survives
+     * process death, so an app opened after the system reclaimed it returns
+     * straight to the active view instead of asking for another tap.
+     */
+    private fun resumeGatewayIfNeeded() {
+        if (UssdPollingService.running) return
+        if (!Credentials.isConfigured(this)) return
+        if (!UssdPollingService.shouldResume(this)) return
+        ActivityLog.add(this, "info", "Gateway resumed with the saved login")
+        UssdPollingService.start(this)
+    }
+
+    /**
+     * Starts the foreground polling service exactly once. Shared by the Start
+     * button and [DashboardBridge.setCredentials], so saving a login is all the
+     * gateway needs to stay armed; the activity log row is written only on a
+     * real start.
+     */
+    private fun ensureGateway() {
+        if (UssdPollingService.running) return
+        val channel = channelLabel(preferences.getString("channel", "TELEBIRR") ?: "TELEBIRR")
+        val sim = preferences.getInt("sim_slot", 0) + 1
+        ActivityLog.add(this, "success", "Gateway started · $channel · SIM $sim")
+        UssdPollingService.start(this)
     }
 
     private fun createWebView(): WebView = WebView(this).apply {
@@ -212,7 +243,8 @@ class MainActivity : ComponentActivity() {
         /**
          * Persists the onboarding login for [channel] into SharedPreferences("ussd"),
          * the same store the polling and accessibility services read, so the saved
-         * phone and PIN are available to the automated USSD session.
+         * phone and PIN are available to the automated USSD session, then starts
+         * the polling listener so "Save & continue" is the whole onboarding.
          * Credentials.save() re-validates on the native side: the WebView is not
          * a trust boundary, and the PIN never comes back out to the page.
          */
@@ -226,6 +258,10 @@ class MainActivity : ComponentActivity() {
                 return
             }
             ActivityLog.add(this@MainActivity, "success", "Logged in to ${channelLabel(channel)} · +251 $normalized")
+            // Saving the login ends onboarding: bring the polling listener up in
+            // the same call so the dashboard switches straight to its running,
+            // minimal view without asking for a second tap.
+            ensureGateway()
             pushState()
         }
 
@@ -247,11 +283,7 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface
         fun startGateway() {
-            if (UssdPollingService.running) { pushState(); return }
-            val channel = channelLabel(preferences.getString("channel", "TELEBIRR") ?: "TELEBIRR")
-            val sim = preferences.getInt("sim_slot", 0) + 1
-            ActivityLog.add(this@MainActivity, "success", "Gateway started · $channel · SIM $sim")
-            ContextCompat.startForegroundService(applicationContext, Intent(applicationContext, UssdPollingService::class.java))
+            ensureGateway()
             pushState()
         }
 
