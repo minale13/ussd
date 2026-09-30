@@ -22,7 +22,11 @@ android/captures/
 .DS_Store
 Thumbs.db
 *.log
+*.txt
 .tmp-*
+
+# Local preview logs
+admin-preview.log
 
 # Scratch launcher for the local UI preview server
 do-prev.cmd
