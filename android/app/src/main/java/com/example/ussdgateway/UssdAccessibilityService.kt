@@ -63,6 +63,8 @@ class UssdAccessibilityService : AccessibilityService() {
     private fun sendWebhook(status: String, reason: String?) {
         val providerId = getValue("provider_transaction_id")
         if (providerId.isEmpty()) return
+        // The server webhook is the single source of truth for payout
+        // outcomes; the web admin dashboard reads the history from there.
         val body = buildString {
             append("{\"eventId\":\"").append(UUID.randomUUID()).append("\",\"eventType\":\"USSD_PAYMENT_RESULT\",\"providerTransactionId\":\"").append(json(providerId)).append("\",\"status\":\"").append(status).append("\"")
             if (reason != null) append(",\"failureReason\":\"").append(json(reason.take(512))).append("\"")

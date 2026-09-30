@@ -145,6 +145,8 @@ input::placeholder,textarea::placeholder{color:#5c6b84}
 .unit{font-family:var(--font-body);font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--muted);padding:4px 8px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
 .metric-foot{margin-top:12px;color:var(--faint);font-size:12.5px}
 .workspace{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
+/* Transaction history needs the full width: seven columns do not fit a column. */
+.panel.span-all{grid-column:1/-1}
 .panel{padding:22px}
 .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:20px}
 .panel-heading{display:flex;align-items:center;gap:13px}
@@ -207,6 +209,43 @@ tbody tr:hover td{background:linear-gradient(90deg,rgba(16,185,129,.075),rgba(34
 .pill.blocked{color:#fecdd3;background:linear-gradient(135deg,rgba(244,63,94,.16),rgba(251,113,133,.08));border:1px solid rgba(251,113,133,.45);box-shadow:0 0 22px rgba(244,63,94,.2),inset 0 1px 0 rgba(255,255,255,.1)}
 .seen{color:var(--text-dim);font-size:12.5px;white-space:nowrap}
 .seen small{display:block;color:#5b6b84;font-size:11.5px;margin-top:2px}
+/* --- Device fleet ---------------------------------------------------
+   A device is only useful to an operator if its SIM/channel, battery and
+   network are visible next to its online state, so the fleet table carries
+   all four as their own columns rather than burying them in a tooltip. */
+.fleet-channel{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.fleet-channel .tag{font-size:11.5px;font-weight:800;letter-spacing:.04em}
+.fleet-channel .tag.telebirr{color:#7dd3fc}
+.fleet-channel .tag.cbe{color:#fcd34d}
+.fleet-channel .sim{color:var(--muted);font-size:12px}
+/* Battery is a bar plus a number: a glanceable level and an exact value. */
+.battery{display:flex;align-items:center;gap:9px;min-width:118px}
+.battery-track{position:relative;width:52px;height:11px;flex:none;border-radius:3px;border:1px solid var(--line-strong);background:rgba(2,6,23,.6);overflow:hidden}
+.battery-fill{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--grad-emerald);transition:width .5s cubic-bezier(.22,.61,.36,1)}
+.battery.low .battery-fill{background:linear-gradient(118deg,#fde68a,#fbbf24 48%,#f59e0b)}
+.battery.critical .battery-fill{background:linear-gradient(118deg,#fecdd3,#fb7185 48%,#f43f5e)}
+.battery-value{font-size:12px;font-weight:700;color:var(--text-dim);font-variant-numeric:tabular-nums}
+.net{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px;font-size:11.5px;font-weight:800;letter-spacing:.05em;border:1px solid var(--line-strong);color:var(--muted);background:rgba(255,255,255,.04);white-space:nowrap}
+.net.fast{color:#a7f3d0;border-color:rgba(52,211,153,.42);background:rgba(16,185,129,.14)}
+.net.slow{color:#fcd34d;border-color:rgba(251,191,36,.4);background:rgba(245,158,11,.12)}
+.net.down{color:#fda4af;border-color:rgba(251,113,133,.42);background:rgba(244,63,94,.12)}
+/* Online/offline is the column an operator scans first, so it leads the row. */
+.pill.online{color:#a7f3d0;background:linear-gradient(135deg,rgba(16,185,129,.22),rgba(34,211,238,.13));border:1px solid rgba(52,211,153,.45);box-shadow:0 0 22px rgba(16,185,129,.24),inset 0 1px 0 rgba(255,255,255,.12)}
+.pill.offline{color:#94a3b8;background:rgba(148,163,184,.1);border:1px solid rgba(148,163,184,.28)}
+.pill.offline .dot{box-shadow:none;opacity:.7}
+/* --- Transaction history -------------------------------------------- */
+.txn-id{font-family:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;font-size:11.5px;color:var(--text-dim);word-break:break-all;letter-spacing:.01em}
+.txn-amount{font-weight:800;font-size:13.5px;color:#f6f9fc;font-variant-numeric:tabular-nums;white-space:nowrap}
+.txn-amount small{font-weight:700;font-size:10.5px;color:var(--faint);letter-spacing:.1em;margin-left:5px}
+.txn-phone{font-family:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+.txn-device{display:flex;flex-direction:column;gap:2px;min-width:0}
+.txn-device .name{font-size:12.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txn-device .id{font-family:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;font-size:10.5px;color:#5b6b84;word-break:break-all}
+.txn-device .unassigned{color:#5b6b84;font-style:italic}
+.pill.pending{color:#fcd34d;background:rgba(245,158,11,.14);border:1px solid rgba(251,191,36,.4)}
+.pill.settled{color:#a7f3d0;background:linear-gradient(135deg,rgba(16,185,129,.22),rgba(34,211,238,.13));border:1px solid rgba(52,211,153,.45);box-shadow:0 0 22px rgba(16,185,129,.2),inset 0 1px 0 rgba(255,255,255,.12)}
+.pill.failed{color:#fecdd3;background:linear-gradient(135deg,rgba(244,63,94,.16),rgba(251,113,133,.08));border:1px solid rgba(251,113,133,.45);box-shadow:0 0 22px rgba(244,63,94,.2),inset 0 1px 0 rgba(255,255,255,.1)}
+.pill.cancelled,.pill.expired{color:#cbd5e1;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.3)}
 .action-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:11px;font-size:12px;font-weight:700;border:1px solid var(--line-strong);background:rgba(255,255,255,.035);color:var(--text-dim);transition:transform .22s,border-color .22s,background .22s,color .22s,box-shadow .25s}
 .action-btn svg{width:14px;height:14px}
 .action-btn:hover{transform:translateY(-1px)}
@@ -429,16 +468,34 @@ body.is-loading .is-shimmer::before{content:'';position:absolute;inset:0;backgro
       <div class="panel-heading">
         <div class="panel-icon cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="13" rx="3"/><path d="M8.5 20.5h7M12 17.5v3"/></svg></div>
         <div>
-          <h2>Connected devices</h2>
-          <p>Manage gateway access and activity.</p>
+          <h2>Device fleet</h2>
+          <p>Every phone running the app, with its channel, battery and network.</p>
         </div>
       </div>
       <span class="count-chip" id="device-count">0 devices</span>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Device</th><th>Status</th><th>Last seen</th><th class="th-action"><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody id="devices"><tr><td colspan="4"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="10" width="15" height="10.5" rx="3"/><path d="M8.5 10V7.6a3.5 3.5 0 0 1 7 0V10"/></svg>Unlock the console to load registered devices.</div></td></tr></tbody>
+        <thead><tr><th>State</th><th>Device</th><th>Channel / SIM</th><th>Battery</th><th>Network</th><th>Last seen</th><th class="th-action"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="devices"><tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="10" width="15" height="10.5" rx="3"/><path d="M8.5 10V7.6a3.5 3.5 0 0 1 7 0V10"/></svg>Unlock the console to load registered devices.</div></td></tr></tbody>
+      </table>
+    </div>
+  </article>
+  <article class="glass panel span-all">
+    <div class="panel-head">
+      <div class="panel-heading">
+        <div class="panel-icon gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg></div>
+        <div>
+          <h2>Transaction history</h2>
+          <p>Centralized log of every payout across the whole fleet.</p>
+        </div>
+      </div>
+      <span class="count-chip" id="txn-count">No payouts yet</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Transaction</th><th>Device</th><th>Phone</th><th>Amount</th><th>Channel</th><th>Status</th><th>Created</th></tr></thead>
+        <tbody id="txns"><tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>Unlock the console to load payout history.</div></td></tr></tbody>
       </table>
     </div>
   </article>
@@ -553,25 +610,113 @@ const CLIENT = `
     byId('last-sync').querySelector('span').textContent = 'Synced ' + new Date().toLocaleTimeString();
   }
 
+  /** Channel badge: Telebirr and CBE each keep their own accent. */
+  function channelCell(channel) {
+    var label = CHANNEL_LABELS[channel] || '—';
+    var tone = channel === 'CBE' ? 'cbe' : 'telebirr';
+    return '<div class="fleet-channel"><span class="channel-dot ' + tone + '"></span><span class="tag ' + tone + '">' + escapeHtml(label) + '</span></div>';
+  }
+
+  /** "SIM 2 · Ethio Telecom" from the slot index the client reported. */
+  function simText(device) {
+    var parts = [];
+    if (device.sim_slot !== null && device.sim_slot !== undefined && device.sim_slot >= 0) {
+      parts.push('SIM ' + (Number(device.sim_slot) + 1));
+    }
+    if (device.carrier) parts.push(device.carrier);
+    return parts.length ? escapeHtml(parts.join(' · ')) : '<span class="sim">Unknown SIM</span>';
+  }
+
+  /** Battery bar. Level is nullable, and a low charge is called out explicitly. */
+  function batteryCell(level) {
+    if (level === null || level === undefined) {
+      return '<div class="battery"><div class="battery-track"></div><span class="battery-value">—</span></div>';
+    }
+    var value = Math.max(0, Math.min(100, Number(level)));
+    var tone = value <= 15 ? ' critical' : value <= 35 ? ' low' : '';
+    return '<div class="battery' + tone + '" title="' + value + '%">' +
+      '<div class="battery-track"><div class="battery-fill" style="width:' + value + '%"></div></div>' +
+      '<span class="battery-value">' + value + '%</span></div>';
+  }
+
+  /** Network generation badge, coloured by how usable it is for a payout. */
+  function networkCell(type) {
+    if (!type) return '<span class="net down">No data</span>';
+    var fast = type === '4G' || type === '5G';
+    var slow = type === '3G' || type === '2G';
+    var tone = fast ? ' fast' : slow ? ' slow' : ' down';
+    return '<span class="net' + tone + '">' + escapeHtml(type) + '</span>';
+  }
+
   function renderDevices(devices) {
     var tbody = byId('devices');
     state.devices = devices;
     renderTargetOptions();
-    byId('device-count').textContent = devices.length + ' device' + (devices.length === 1 ? '' : 's');
+    var onlineCount = devices.filter(function (device) {
+      return Boolean(device.online);
+    }).length;
+    byId('device-count').textContent = onlineCount + ' online / ' + devices.length +
+      (devices.length === 1 ? ' device' : ' devices');
     if (!devices.length) {
-      tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">' + SVG_EMPTY + 'No devices have polled the gateway yet.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">' + SVG_EMPTY + 'No devices have polled the gateway yet.</div></td></tr>';
       return;
     }
     tbody.innerHTML = devices.map(function (device) {
       var active = Boolean(device.active_status);
+      var online = Boolean(device.online);
       var seen = new Date(device.last_seen_at);
       var seenText = isNaN(seen.getTime()) ? 'Unknown' : seen.toLocaleString();
       var seenTitle = isNaN(seen.getTime()) ? '' : seen.toISOString();
+      var stateLabel = !active ? 'Blocked' : online ? 'Online' : 'Offline';
+      var stateTone = !active ? 'blocked' : online ? 'online' : 'offline';
       return '<tr>' +
+        '<td><span class="pill ' + stateTone + '"><span class="dot"></span>' + stateLabel + '</span></td>' +
         '<td><div class="device-id">' + escapeHtml(device.device_id) + '</div><div class="device-model">' + escapeHtml(device.phone_model || 'Unknown model') + '</div></td>' +
-        '<td><span class="pill ' + (active ? 'active' : 'blocked') + '"><span class="dot"></span>' + (active ? 'Active' : 'Blocked') + '</span></td>' +
+        '<td>' + channelCell(device.channel) + '<div class="sim">' + simText(device) + '</div></td>' +
+        '<td>' + batteryCell(device.battery_level) + '</td>' +
+        '<td>' + networkCell(device.network_type) + '</td>' +
         '<td><div class="seen" title="' + escapeHtml(seenTitle) + '">' + escapeHtml(seenText) + '<small>' + escapeHtml(timeAgo(device.last_seen_at)) + '</small></div></td>' +
         '<td><button type="button" class="action-btn ' + (active ? 'block' : 'unblock') + '" data-action="toggle" data-device-id="' + escapeHtml(device.device_id) + '" data-active="' + active + '">' + (active ? SVG_BLOCK + 'Block' : SVG_UNBLOCK + 'Unblock') + '</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  /** Status chip tone for a payout. Unknown states fall back to neutral. */
+  function statusTone(status) {
+    if (status === 'COMPLETED') return 'settled';
+    if (status === 'FAILED') return 'failed';
+    if (status === 'PENDING' || status === 'PROCESSING') return 'pending';
+    return 'cancelled';
+  }
+
+  /**
+   * Centralized payout ledger. The device column shows the target a payout was
+   * routed to; an auto-assigned payout has no recorded owner yet, so it is
+   * labelled "unassigned" rather than attributed to an arbitrary phone.
+   */
+  function renderTransactions(rows) {
+    var tbody = byId('txns');
+    byId('txn-count').textContent = rows.length ? rows.length + (rows.length === 1 ? ' payout' : ' payouts') : 'No payouts yet';
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">' + SVG_EMPTY + 'No payouts have been dispatched yet.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function (row) {
+      var status = String(row.status || 'PENDING').toUpperCase();
+      var channel = CHANNEL_LABELS[row.channel] || '—';
+      var device = row.device_id
+        ? '<div class="txn-device"><span class="name">' + escapeHtml(row.device_model || 'Unknown model') + '</span><span class="id">' + escapeHtml(row.device_id) + '</span></div>'
+        : '<div class="txn-device"><span class="unassigned">Unassigned</span></div>';
+      var created = new Date(row.created_at);
+      var createdText = isNaN(created.getTime()) ? 'Unknown' : created.toLocaleString();
+      return '<tr>' +
+        '<td><div class="txn-id">' + escapeHtml(row.transaction_id || '—') + '</div></td>' +
+        '<td>' + device + '</td>' +
+        '<td><div class="txn-phone">' + escapeHtml(row.destination || '—') + '</div></td>' +
+        '<td><div class="txn-amount">' + money(row.amount) + '<small>' + escapeHtml(row.currency || 'ETB') + '</small></div></td>' +
+        '<td><div class="fleet-channel"><span class="channel-dot ' + (row.channel === 'CBE' ? 'cbe' : 'telebirr') + '"></span><span class="tag ' + (row.channel === 'CBE' ? 'cbe' : 'telebirr') + '">' + escapeHtml(channel) + '</span></div></td>' +
+        '<td><span class="pill ' + statusTone(status) + '"><span class="dot"></span>' + escapeHtml(status) + '</span></td>' +
+        '<td><div class="seen">' + escapeHtml(createdText) + '<small>' + escapeHtml(timeAgo(row.created_at)) + '</small></div></td>' +
         '</tr>';
     }).join('');
   }
@@ -594,9 +739,14 @@ const CLIENT = `
     }
     var wasUnlocked = state.unlocked;
     setLoading(true);
-    return Promise.all([api('/api/admin/overview'), api('/api/admin/devices')]).then(function (responses) {
+    return Promise.all([
+      api('/api/admin/overview'),
+      api('/api/admin/devices'),
+      api('/api/admin/transactions')
+    ]).then(function (responses) {
       renderMetrics(responses[0].overview, state.firstLoad);
       renderDevices(responses[1].devices || []);
+      renderTransactions(responses[2].transactions || []);
       state.firstLoad = false;
       state.unlocked = true;
       document.body.classList.add('unlocked');
@@ -715,13 +865,17 @@ const CLIENT = `
     var activeCount = state.devices.filter(function (item) {
       return item.active_status;
     }).length;
-    byId('target-value').textContent = device ? device.phone_model || device.device_id : 'Any available device';
+    byId('target-value').textContent = device ? (device.phone_model || device.device_id) : 'Any available device';
     byId('target-dot').className = 'channel-dot ' + (device ? 'device' : 'auto');
     var badge = byId('target-badge');
+    // Surface the exact id for a pinned payout: it is what the console sends
+    // as targetDeviceId and what the receiving phone matches itself against.
     badge.className = 'mini-badge ' + (device ? 'active' : 'auto');
-    badge.textContent = device ? 'Active' : 'Auto';
+    badge.textContent = device ? 'Pinned' : 'Auto';
     var note = byId('target-note');
-    note.textContent = state.devices.length ? activeCount + ' of ' + state.devices.length + ' devices active' : 'No devices registered yet';
+    note.textContent = device
+      ? 'Will run on ' + device.device_id
+      : state.devices.length ? activeCount + ' of ' + state.devices.length + ' devices active' : 'No devices registered yet';
     note.classList.toggle('is-live', activeCount > 0);
     markMenuSelection('target', state.targetDevice);
   }

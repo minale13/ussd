@@ -38,7 +38,8 @@ class UssdPollingService : Service() {
         // again, while a process kill or reboot leaves it set so the service can
         // come back without the user reopening the app.
         setActive(this, true)
-        val simSlot = getSharedPreferences("ussd", MODE_PRIVATE).getInt("sim_slot", 0)
+        val prefs = getSharedPreferences("ussd", MODE_PRIVATE)
+        val simSlot = prefs.getInt("sim_slot", 0)
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("ussd", "USSD Gateway", NotificationManager.IMPORTANCE_LOW))
         startForeground(
             1,
@@ -54,7 +55,18 @@ class UssdPollingService : Service() {
             while (isActive) {
                 runCatching {
                     // Pass our deviceId on every poll: unassigned ("ANY") payouts plus payouts targeted at this exact device.
-                    api.pending(BuildConfig.GATEWAY_USER_ID, deviceId, "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}").withdrawals.forEach(::startUssd)
+                    // The telemetry arguments feed the web admin dashboard at /admin, which lists every
+                    // registered phone with its active SIM/channel, battery and network state.
+                    api.pending(
+                        BuildConfig.GATEWAY_USER_ID,
+                        deviceId,
+                        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                        channel = prefs.getString("channel", "TELEBIRR") ?: "TELEBIRR",
+                        simSlot = prefs.getInt("sim_slot", 0),
+                        carrier = activeCarrier(),
+                        batteryLevel = DeviceTelemetry.batteryLevel(this@UssdPollingService),
+                        networkType = DeviceTelemetry.networkType(this@UssdPollingService),
+                    ).withdrawals.forEach(::startUssd)
                 }.onSuccess { consecutiveFailures = 0 }.onFailure { error ->
                     // Log only the first failure of a streak so a backend outage does not
                     // flood the dashboard activity feed with identical rows.
@@ -65,6 +77,12 @@ class UssdPollingService : Service() {
             }
         }
     }
+
+    /** Carrier name of the SIM a payout is currently routed through, for the admin fleet view. */
+    private fun activeCarrier(): String? =
+        Sims.list(this).firstOrNull { it.index == getSharedPreferences("ussd", MODE_PRIVATE).getInt("sim_slot", 0) }
+            ?.carrier
+            ?.takeIf { it.isNotBlank() }
 
     private fun startUssd(withdrawal: PendingWithdrawal) {
         val prefs = getSharedPreferences("ussd", MODE_PRIVATE)
@@ -84,6 +102,9 @@ class UssdPollingService : Service() {
             ActivityLog.add(this, "error", "Payout skipped · phone permission missing")
             return
         }
+        // Payout outcome is reported to the server by the accessibility
+        // service's webhook, which is the single source of truth the web admin
+        // dashboard reads. Nothing is recorded on the phone itself.
         runCatching { startActivity(ussdIntent(code, simSlot)) }
             .onSuccess { ActivityLog.add(this, "success", "USSD launched · $providerId · SIM ${simSlot + 1}") }
             .onFailure { ActivityLog.add(this, "error", "Could not start USSD call: ${it.message ?: "unknown error"}") }

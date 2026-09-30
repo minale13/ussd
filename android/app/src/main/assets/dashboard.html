@@ -311,6 +311,15 @@
   }
   .brand-submit:active { transform: scale(0.985); }
   .brand-submit:disabled { cursor: not-allowed; opacity: 0.45; }
+
+  /* ---------------------------------------------------------------------
+     Layout. The mobile UI is deliberately tiny: onboarding, a settings
+     sheet, the listening orb, and a compact status panel for the stopped
+     state. There is no operations console here - device fleet management,
+     transaction history and payout dispatching live in the web admin
+     dashboard served by the API at /admin.
+     --------------------------------------------------------------------- */
+
 </style>
 </head>
 <body class="min-h-screen bg-[#0A1228] text-slate-100 antialiased selection:bg-emerald-400/30 selection:text-emerald-50">
@@ -472,8 +481,8 @@
     <!-- Active mode: the layered listening orb and the glass status pill naming
          the channel being polled, plus the settings gear in the header. Nothing
          else — no secondary copy. Every visual layer comes from the
-         hand-written CSS above, so the APK renders exactly what the preview
-         shows. -->
+     hand-written CSS above, so the APK renders exactly what the preview
+     shows. -->
     <section id="active-view" class="hidden min-h-[calc(100svh-6rem)] items-center justify-center" aria-live="polite">
       <div class="flex flex-col items-center">
         <div class="listening-orb" role="img" aria-label="Gateway is actively listening">
@@ -1051,6 +1060,14 @@
         // header dot would repeat it; the settings gear stays as the control.
         document.getElementById("status-dot").classList.toggle("hidden", running);
         document.body.classList.toggle("active-mode", running);
+        document.getElementById("active-view").classList.toggle("hidden", !running);
+        document.getElementById("active-view").classList.toggle("flex", running);
+        document.getElementById("dashboard-content").classList.toggle("hidden", running);
+        document.getElementById("settings-stop").classList.toggle("hidden", !running);
+        document.getElementById("hero-credentials").classList.toggle("hidden", running);
+
+        // The orb and the settings gear are the whole running state; the
+        // stopped state keeps the compact status panel below the header.
         document.getElementById("active-view").classList.toggle("hidden", !running);
         document.getElementById("active-view").classList.toggle("flex", running);
         document.getElementById("dashboard-content").classList.toggle("hidden", running);

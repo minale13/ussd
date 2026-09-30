@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:migrate": "tsx scripts/migrate.ts",
     "test:load": "tsx scripts/load-test.ts",
-    "ui:dev": "node scripts/ui-preview.js"
+    "ui:dev": "node scripts/ui-preview.js",
+    "admin:preview": "npm run build && node scripts/admin-preview.mjs"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.0",

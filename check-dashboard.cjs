@@ -27,7 +27,23 @@ if (!html.includes("localStorage.setItem(STORAGE_KEY")) throw new Error("credent
 if (!html.includes('classList.toggle("hidden", running)')) throw new Error("active-state toggle missing");
 if (!html.includes('document.getElementById("dashboard-content").classList.toggle("hidden", running)')) throw new Error("active dashboard hiding missing");
 if (!html.includes('document.getElementById("settings-stop")')) throw new Error("settings stop action missing");
+// The mobile app is a device client only. Device fleet management, payout
+// dispatching and transaction history belong to the standalone web console
+// at /admin, so no admin surface may ever ship in the APK again.
+for (const forbidden of [
+  "admin-view",
+  "admin-btn",
+  "admin-txn-body",
+  "admin-toggle",
+  "renderAdmin",
+  "setAdminOpen",
+  "admin-mode",
+  "s.transactions || []",
+  "view=admin",
+]) {
+  if (html.includes(forbidden)) throw new Error(`admin surface returned to the mobile app: ${forbidden}`);
+}
 for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
   new Function(match[1]);
 }
-console.log(`dashboard invariants passed (${ids.length} unique ids; inline JavaScript parsed)`);
+console.log(`dashboard invariants passed (${ids.length} unique ids; no admin surface; inline JavaScript parsed)`);

@@ -9,8 +9,9 @@
  *     channel, SIM selection, permission buttons, onboarding login) works in the
  *     browser with a realistic in-memory state — no device needed. Query params
  *     override the initial state for design review:
- *       ?running=1  &a11y=0  &phone=0  &sim=0  &channel=CBE  &slot=1  &empty=1
+ *       ?running=1  &a11y=0  &phone=0  &sim=0  &channel=CBE  &slot=1  &txns=0
  *       &login=0911234567   (skip onboarding, start already signed in)
+ *       &view=admin          (open the admin console instead of the dashboard)
  *  2. An SSE live-reload client; the server watches dashboard.html and
  *     tailwind.css and pushes `reload` on change.
  *

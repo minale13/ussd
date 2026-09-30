@@ -152,15 +152,56 @@ export async function transitionWithdrawal(client: PoolClient, id: string, from:
   return result.rows[0];
 }
 
-export async function claimPendingWithdrawals(deviceId: string, phoneModel: string, limit = 1) {
+/**
+ * Fleet telemetry a device reports on every poll. The web admin dashboard
+ * at /admin renders this so an operator can see which phone is on which
+ * SIM/channel and whether it has the battery and signal to take a payout.
+ * Every field is optional: an older client or a restricted platform build
+ * simply sends fewer of them, and the console renders what it has.
+ */
+export interface DeviceTelemetry {
+  channel?: string | null;
+  simSlot?: number | null;
+  carrier?: string | null;
+  batteryLevel?: number | null;
+  networkType?: string | null;
+}
+
+export async function claimPendingWithdrawals(
+  deviceId: string,
+  phoneModel: string,
+  limit = 1,
+  telemetry: DeviceTelemetry = {}
+) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Registering the device and refreshing its telemetry happen in the same
+    // statement as the claim so a single poll both proves the phone is alive
+    // and records what it is currently able to do.
     const device = await client.query(
-      `INSERT INTO mobile_devices (device_id, phone_model) VALUES ($1, $2)
-       ON CONFLICT (device_id) DO UPDATE SET phone_model = $2, last_seen_at = now(), updated_at = now()
+      `INSERT INTO mobile_devices
+         (device_id, phone_model, sim_slot, channel, carrier, battery_level, network_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (device_id) DO UPDATE SET
+         phone_model = EXCLUDED.phone_model,
+         sim_slot = EXCLUDED.sim_slot,
+         channel = EXCLUDED.channel,
+         carrier = EXCLUDED.carrier,
+         battery_level = EXCLUDED.battery_level,
+         network_type = EXCLUDED.network_type,
+         last_seen_at = now(),
+         updated_at = now()
        RETURNING active_status`,
-      [deviceId, phoneModel]
+      [
+        deviceId,
+        phoneModel,
+        telemetry.simSlot ?? null,
+        telemetry.channel ?? null,
+        telemetry.carrier ?? null,
+        telemetry.batteryLevel ?? null,
+        telemetry.networkType ?? null
+      ]
     );
     if (!device.rows[0].active_status) {
       await client.query('ROLLBACK');

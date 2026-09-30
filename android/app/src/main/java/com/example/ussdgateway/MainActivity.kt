@@ -219,6 +219,10 @@ class MainActivity : ComponentActivity() {
             }
             state.put("sims", sims)
             state.put("logs", ActivityLog.dump(this@MainActivity))
+            // The snapshot is deliberately minimal. Payout history, device
+            // fleet state and dispatch controls live in the server database
+            // and are served by the web admin dashboard at /admin, so the
+            // phone only ever ships what the orb and the settings sheet need.
             // Only the channel and phone are exposed: the PIN stays in
             // SharedPreferences and is never handed back to the WebView.
             val loginPhone = preferences.getString("login_phone", null)

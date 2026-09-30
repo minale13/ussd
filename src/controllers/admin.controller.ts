@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { getFinancialOverview, listDevices, setDeviceStatus } from '../services/admin.service.js';
+import { getFinancialOverview, listDevices, listTransactions, setDeviceStatus } from '../services/admin.service.js';
 import { createManualWithdrawal } from '../services/withdrawal.service.js';
 import { env } from '../config/env.js';
 import { normalizeMoney } from '../utils/money.js';
@@ -42,6 +42,16 @@ export async function overview(_request: FastifyRequest, reply: FastifyReply) {
 
 export async function devices(_request: FastifyRequest, reply: FastifyReply) {
   return reply.send({ success: true, devices: await listDevices() });
+}
+
+/**
+ * Centralized payout history for the whole fleet, newest first. Clamped so a
+ * crafted `limit` cannot ask the database for an unbounded result set.
+ */
+export async function transactions(request: FastifyRequest, reply: FastifyReply) {
+  const requested = Number((request.query as { limit?: string }).limit ?? 50);
+  const limit = Math.min(Math.max(Number.isFinite(requested) ? Math.trunc(requested) : 50, 1), 200);
+  return reply.send({ success: true, transactions: await listTransactions(limit) });
 }
 
 export async function updateDevice(request: FastifyRequest, reply: FastifyReply) {

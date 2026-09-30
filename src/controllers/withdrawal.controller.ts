@@ -52,6 +52,26 @@ export async function cancel(request: FastifyRequest, reply: FastifyReply) {
   }
 }
 
+/**
+ * Reads one optional `x-device-*` header as a trimmed string, or undefined when
+ * the client did not send it. Fleet telemetry is advisory: a client that omits
+ * a value still polls successfully.
+ */
+function header(request: FastifyRequest, name: string): string | undefined {
+  const value = request.headers[name];
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** Same as [header], but only accepts a whole number so a bad value cannot poison the column. */
+function intHeader(request: FastifyRequest, name: string): number | undefined {
+  const raw = header(request, name);
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  return Number.isInteger(value) ? value : undefined;
+}
+
 export async function pending(request: FastifyRequest, reply: FastifyReply) {
   const limit = Math.min(Math.max(Number((request.query as { limit?: string }).limit ?? 1), 1), 10);
   const deviceId = request.headers['x-device-id'];
@@ -59,8 +79,23 @@ export async function pending(request: FastifyRequest, reply: FastifyReply) {
   if (typeof deviceId !== 'string' || typeof phoneModel !== 'string' || !deviceId || !phoneModel) {
     return reply.code(400).send({ success: false, error: 'Device ID and phone model are required' });
   }
+  // Fleet telemetry for the admin console. Every value is optional and none of
+  // them gate the claim, so an older client keeps working unchanged.
+  const channel = header(request, 'x-device-channel');
+  const batteryLevel = intHeader(request, 'x-device-battery');
+  const telemetry = {
+    channel: channel === 'CBE' || channel === 'TELEBIRR' ? channel : null,
+    simSlot: intHeader(request, 'x-device-sim'),
+    carrier: header(request, 'x-device-carrier'),
+    // The column is CHECKed to 0-100; clamp rather than reject the poll.
+    batteryLevel: batteryLevel === undefined ? null : Math.min(100, Math.max(0, batteryLevel)),
+    networkType: header(request, 'x-device-network'),
+  };
   try {
-    return reply.send({ success: true, withdrawals: await claimPendingWithdrawals(deviceId, phoneModel, limit) });
+    return reply.send({
+      success: true,
+      withdrawals: await claimPendingWithdrawals(deviceId, phoneModel, limit, telemetry),
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'DEVICE_BLOCKED') return reply.code(403).send({ success: false, error: 'Device is blocked' });
     throw error;

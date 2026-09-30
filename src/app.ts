@@ -24,6 +24,7 @@ export function buildApp() {
   app.get('/admin/app.js', adminDashboardScript);
   app.get('/api/admin/overview', { preHandler: authenticateAdmin }, admin.overview);
   app.get('/api/admin/devices', { preHandler: authenticateAdmin }, admin.devices);
+  app.get('/api/admin/transactions', { preHandler: authenticateAdmin }, admin.transactions);
   app.patch('/api/admin/devices/:deviceId', { preHandler: authenticateAdmin }, admin.updateDevice);
   app.post('/api/admin/withdrawals', { preHandler: authenticateAdmin }, admin.manualWithdrawal);
   app.post('/api/withdrawals', { preHandler: authenticate }, withdrawal.create);
