@@ -29,13 +29,6 @@ export const CLIENT_INIT = `
     if (toggle) toggle.setAttribute('aria-expanded', 'false');
   }
 
-  function goTo(target) {
-    closeNav();
-    var node = byId(target);
-    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (target === 'access') byId('key').focus();
-  }
-
   /** Notification count reflects payouts still awaiting settlement. */
   function renderNotifications() {
     var badge = byId('notif-badge');
@@ -55,7 +48,96 @@ export const CLIENT_INIT = `
     renderDevices(state.devices);
   }
 
-  function init() {
+  /**
+ * Client-side navigation for the console.
+ *
+ * Sidebar links are real anchors so they are bookmarkable and shareable; a
+ * plain left click is intercepted for a transition that keeps the in-memory
+ * admin key alive, while modified clicks fall through to the browser.
+ */
+function bindRouter() {
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest('[data-route]');
+    if (!link) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.button !== 0) return;
+    event.preventDefault();
+    navigate(link.getAttribute('data-route'), link.getAttribute('data-focus') || undefined);
+  });
+
+  window.addEventListener('popstate', function () {
+    var route = currentRoute();
+    applyRoute(route);
+    loadView(route);
+  });
+}
+
+/** Wires the per-view search boxes, selects and pagers. */
+function bindViewControls() {
+  var filters = [
+    ['txn-all-search', function () { state.txnPage = 1; renderTransactionsView(); }],
+    ['wd-search', function () { state.wdPage = 1; renderWithdrawalsView(); }],
+    ['wd-status', function () { state.wdPage = 1; renderWithdrawalsView(); }],
+    ['wd-channel', function () { state.wdPage = 1; renderWithdrawalsView(); }],
+    ['dev-search', renderDevicesView],
+    ['users-search', renderUsersView],
+    ['log-search', renderLogsView],
+    ['log-level', renderLogsView]
+  ];
+  filters.forEach(function (entry) {
+    var node = byId(entry[0]);
+    if (node) node.addEventListener('input', entry[1]);
+    if (node && node.tagName === 'SELECT') node.addEventListener('change', entry[1]);
+  });
+
+  [['txn-all-controls', 'txnPage'], ['wd-controls', 'wdPage']].forEach(function (entry) {
+    var controls = byId(entry[0]);
+    if (!controls) return;
+    controls.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-page]');
+      if (!button || button.disabled) return;
+      state[entry[1]] = Number(button.getAttribute('data-page'));
+      if (entry[1] === 'txnPage') renderTransactionsView();
+      else renderWithdrawalsView();
+    });
+  });
+
+  // Cancel is offered only on queued payouts; the server refuses anything else.
+  var withdrawalsBody = byId('wd-all');
+  if (withdrawalsBody) {
+    withdrawalsBody.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-action="cancel"]');
+      if (!button) return;
+      cancelWithdrawal(button.getAttribute('data-id'), button);
+    });
+  }
+
+  // Block/unblock on the standalone Devices view as well as the dashboard panel.
+  var devicesBody = byId('dev-all');
+  if (devicesBody) {
+    devicesBody.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-action="toggle"]');
+      if (!button) return;
+      toggleDevice(button.getAttribute('data-device-id'), button.getAttribute('data-active') !== 'true', button);
+    });
+  }
+}
+
+function cancelWithdrawal(id, button) {
+  button.disabled = true;
+  return api('/api/admin/withdrawals/' + encodeURIComponent(id) + '/cancel', { method: 'POST' })
+    .then(function (result) {
+      var reference = result && result.withdrawal ? result.withdrawal.transaction_id : id;
+      notify('Withdrawal ' + reference + ' cancelled and the reserved balance released.');
+      return loadView('withdrawals');
+    })
+    .catch(function (error) {
+      notify(error && error.message ? error.message : 'Unable to cancel the withdrawal.', 'error');
+      button.disabled = false;
+    });
+}
+
+function init() {
     byId('unlock').addEventListener('click', function () { load(); });
     byId('refresh').addEventListener('click', function () { load(); });
     byId('key').addEventListener('keydown', function (event) {
@@ -79,11 +161,9 @@ export const CLIENT_INIT = `
       Object.keys(MENUS).forEach(function (key) { setMenuOpen(key, false); });
     });
 
-    // Sidebar + quick actions share one delegated handler.
-    document.addEventListener('click', function (event) {
-      var nav = event.target.closest('[data-nav]');
-      if (nav) { goTo(nav.getAttribute('data-nav')); }
-    });
+    // Sidebar, quick actions and view filters share one delegated router.
+    bindRouter();
+    bindViewControls();
 
     byId('nav-toggle').addEventListener('click', function () {
       var open = document.body.classList.toggle('nav-open');
@@ -93,7 +173,7 @@ export const CLIENT_INIT = `
 
     byId('search').addEventListener('input', applySearch);
 
-    byId('notifications').addEventListener('click', function () { goTo('transactions'); });
+    byId('notifications').addEventListener('click', function () { navigate('transactions'); });
 
     byId('txn-page-controls').addEventListener('click', function (event) {
       var button = event.target.closest('[data-page]');
@@ -111,8 +191,16 @@ export const CLIENT_INIT = `
     tickClock();
     setInterval(tickClock, 1000);
 
+    // Paint the section the operator actually requested. Because every route is
+    // served the same shell, this is what makes a hard refresh on /admin/users
+    // land on Users rather than on the dashboard.
+    applyRoute(currentRoute(), null, false);
+
     setInterval(function () {
-      if (state.unlocked && document.visibilityState === 'visible') load({ silent: true });
+      if (state.unlocked && document.visibilityState === 'visible') {
+        load({ silent: true });
+        loadView(state.route);
+      }
     }, REFRESH_MS);
   }
 

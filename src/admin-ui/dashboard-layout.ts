@@ -1,6 +1,5 @@
 import { STYLESHEET } from './stylesheet.js';
 import { FLEET_STATS_CSS } from './components/fleet-stats-css.js';
-import { icon } from './icons.js';
 import { Sidebar } from './components/sidebar.js';
 import { TopHeader } from './components/top-header.js';
 import { UnlockGate } from './components/unlock-gate.js';
@@ -9,6 +8,8 @@ import { DirectWithdrawalCard } from './components/direct-withdrawal.js';
 import { DeviceFleetCard } from './components/device-fleet.js';
 import { QuickActions } from './components/quick-actions.js';
 import { RecentTransactions } from './components/recent-transactions.js';
+import { ContentHead } from './components/views.js';
+import { TransactionsView, WithdrawalsView, DevicesView, UsersView, SettingsView, LogsView } from './components/section-views.js';
 
 /** The three headline metrics, mapped 1:1 onto GET /api/admin/overview. */
 const STAT_CARDS = [
@@ -54,22 +55,11 @@ export function DashboardLayout(): string {
   <div class="main">
     ${TopHeader()}
     <main class="content" id="dashboard">
-      <section class="page-head">
-        <div>
-          <h1 class="page-title">Welcome Back, Admin <span aria-hidden="true">&#128075;</span></h1>
-          <p class="page-sub">Monitor and manage your USSD gateway operations in real-time.</p>
-        </div>
-        <div class="clock">
-          ${icon('calendar', 20)}
-          <div>
-            <div class="clock-date" id="clock-date">&mdash;</div>
-            <div class="clock-time" id="clock-time">&mdash; (EAT)</div>
-          </div>
-        </div>
-      </section>
+      ${ContentHead()}
 
       ${UnlockGate()}
 
+      <div class="view" id="view-dashboard">
       <section class="stats" aria-label="Financial overview">
         ${STAT_CARDS.map((spec) => StatCard(spec)).join('')}
       </section>
@@ -81,6 +71,14 @@ export function DashboardLayout(): string {
       </section>
 
       ${RecentTransactions()}
+      </div>
+
+      <div class="view" id="view-transactions" hidden>${TransactionsView()}</div>
+      <div class="view" id="view-withdrawals" hidden>${WithdrawalsView()}</div>
+      <div class="view" id="view-devices" hidden>${DevicesView()}</div>
+      <div class="view" id="view-users" hidden>${UsersView()}</div>
+      <div class="view" id="view-settings" hidden>${SettingsView()}</div>
+      <div class="view" id="view-logs" hidden>${LogsView()}</div>
 
       <footer class="footer">
         <span>USSD Gateway Console &middot; ETB settlement &middot; Admin API protected</span>

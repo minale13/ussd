@@ -12,5 +12,6 @@ import { COMPONENTS } from './styles/components.js';
 import { CONTROLS } from './styles/controls.js';
 import { DATA } from './styles/data.js';
 import { PANELS } from './styles/panels.js';
+import { VIEWS_CSS } from './styles/views.js';
 
-export const STYLESHEET = [TOKENS, BASE, LAYOUT, GRID, COMPONENTS, CONTROLS, DATA, PANELS].join('\n');
+export const STYLESHEET = [TOKENS, BASE, LAYOUT, GRID, COMPONENTS, CONTROLS, DATA, PANELS, VIEWS_CSS].join('\n');

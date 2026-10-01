@@ -25,7 +25,12 @@ export const CLIENT_CORE = `
     loading: false,
     firstLoad: true,
     search: '',
-    page: 1
+    page: 1,
+    // Route state: route is the active section; the page counters let a view
+    // return to the page the operator was on when they leave and come back.
+    route: 'dashboard',
+    txnPage: 1,
+    wdPage: 1
   };
   var toastTimer = null;
   var submitMarkup = null;

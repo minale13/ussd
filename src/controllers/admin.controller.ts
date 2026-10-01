@@ -1,6 +1,18 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { getFinancialOverview, listDevices, listTransactions, setDeviceStatus } from '../services/admin.service.js';
-import { createManualWithdrawal } from '../services/withdrawal.service.js';
+import {
+  getFinancialOverview,
+  getGatewayHealth,
+  listActivity,
+  listDevices,
+  listTransactions,
+  listUsers,
+  listWithdrawals,
+  setDeviceStatus,
+  findWithdrawalOwner,
+  DEVICE_ONLINE_WINDOW_SECONDS
+} from '../services/admin.service.js';
+import { createManualWithdrawal, cancelWithdrawal } from '../services/withdrawal.service.js';
+import { withdrawalStatuses } from '../types/withdrawal.js';
 import { env } from '../config/env.js';
 import { normalizeMoney } from '../utils/money.js';
 import { z } from 'zod';
@@ -61,6 +73,106 @@ export async function updateDevice(request: FastifyRequest, reply: FastifyReply)
   const device = await setDeviceStatus(params.deviceId, body.activeStatus);
   if (!device) return reply.code(404).send({ success: false, error: 'Device not found' });
   return reply.send({ success: true, device });
+}
+
+const query = (request: FastifyRequest) => request.query as Record<string, string | undefined>;
+
+/**
+ * The withdrawal queue for the Withdrawals view.
+ *
+ * `status` is validated against the real state machine so an unknown value is
+ * rejected rather than silently returning an empty page.
+ */
+export async function withdrawals(request: FastifyRequest, reply: FastifyReply) {
+  const params = query(request);
+  if (params.status && !withdrawalStatuses.includes(params.status as (typeof withdrawalStatuses)[number])) {
+    return reply.code(400).send({ success: false, error: 'Unknown withdrawal status' });
+  }
+  if (params.channel && params.channel !== 'TELEBIRR' && params.channel !== 'CBE') {
+    return reply.code(400).send({ success: false, error: 'Unknown channel' });
+  }
+  const rows = await listWithdrawals(
+    { status: params.status, channel: params.channel },
+    params.limit,
+    params.offset
+  );
+  return reply.send({ success: true, withdrawals: rows });
+}
+
+/**
+ * Admin-initiated cancellation of a queued payout.
+ *
+ * Delegates to the same transactional `cancelWithdrawal` the owner-facing
+ * endpoint uses, so the wallet release and the ledger entry are written by the
+ * existing code path rather than a second implementation. Only a PENDING payout
+ * can be cancelled; the service enforces the state machine and we surface the
+ * refusal instead of forcing the status.
+ */
+export async function cancelWithdrawalRequest(request: FastifyRequest, reply: FastifyReply) {
+  const params = request.params as { id: string };
+  const withdrawal = await findWithdrawalOwner(params.id);
+  if (!withdrawal) return reply.code(404).send({ success: false, error: 'Withdrawal not found' });
+  if (withdrawal.status !== 'PENDING') {
+    return reply.code(409).send({ success: false, error: `A ${withdrawal.status} withdrawal can no longer be cancelled` });
+  }
+  try {
+    const cancelled = await cancelWithdrawal(params.id, withdrawal.user_id);
+    return reply.send({ success: true, withdrawal: cancelled });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const known = ['INVALID_STATE_TRANSITION', 'WITHDRAWAL_NOT_FOUND'].includes(message);
+    return reply.code(known ? 409 : 500).send({
+      success: false,
+      error: known ? 'Withdrawal can no longer be cancelled' : 'Unable to cancel the withdrawal'
+    });
+  }
+}
+
+export async function users(request: FastifyRequest, reply: FastifyReply) {
+  const params = query(request);
+  const rows = await listUsers(params.limit, params.offset);
+  // Authority is derived from configuration, not from a role column that does
+  // not exist in the schema.
+  return reply.send({
+    success: true,
+    users: rows.map((row) => ({ ...row, is_admin_user: row.id === env.ADMIN_WITHDRAWAL_USER_ID }))
+  });
+}
+
+export async function activity(request: FastifyRequest, reply: FastifyReply) {
+  const params = query(request);
+  if (params.level && !['info', 'warn', 'error'].includes(params.level)) {
+    return reply.code(400).send({ success: false, error: 'Unknown log level' });
+  }
+  return reply.send({ success: true, activity: await listActivity(params.limit, params.level) });
+}
+
+/**
+ * Read-only gateway configuration for the Settings view.
+ *
+ * This is an explicit allow-list. ADMIN_API_KEY, JWT_SECRET,
+ * PAYMENT_WEBHOOK_SECRET, DATABASE_URL and REDIS_URL are never referenced here,
+ * so no credential can reach the browser through this endpoint.
+ */
+export async function settings(_request: FastifyRequest, reply: FastifyReply) {
+  const health = await getGatewayHealth();
+  return reply.send({
+    success: true,
+    settings: {
+      read_only: true,
+      environment: env.NODE_ENV,
+      local_infra_fallback: env.LOCAL_INFRA_FALLBACK,
+      channels: ['TELEBIRR', 'CBE'],
+      currency: 'ETB',
+      min_withdrawal: env.MIN_WITHDRAWAL,
+      max_withdrawal: env.MAX_WITHDRAWAL,
+      worker_concurrency: env.WORKER_CONCURRENCY,
+      processing_timeout_seconds: env.PROCESSING_TIMEOUT_SECONDS,
+      device_online_window_seconds: DEVICE_ONLINE_WINDOW_SECONDS,
+      auto_refresh_seconds: 30,
+      health
+    }
+  });
 }
 
 export async function manualDashboard(_request: FastifyRequest, reply: FastifyReply) {

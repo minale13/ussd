@@ -21,10 +21,21 @@ export function buildApp() {
     redis: env.LOCAL_INFRA_FALLBACK && env.NODE_ENV === 'development' ? 'disabled' : 'required'
   }));
   app.get('/admin', adminDashboard);
+  // Every console section is a real, bookmarkable URL. They all serve the same
+  // single-page shell; the client router picks the view from the pathname, so a
+  // hard refresh or a shared link lands on the right page.
+  for (const section of ['transactions', 'withdrawals', 'devices', 'users', 'settings', 'logs']) {
+    app.get(`/admin/${section}`, adminDashboard);
+  }
   app.get('/admin/app.js', adminDashboardScript);
   app.get('/api/admin/overview', { preHandler: authenticateAdmin }, admin.overview);
   app.get('/api/admin/devices', { preHandler: authenticateAdmin }, admin.devices);
   app.get('/api/admin/transactions', { preHandler: authenticateAdmin }, admin.transactions);
+  app.get('/api/admin/withdrawals', { preHandler: authenticateAdmin }, admin.withdrawals);
+  app.post('/api/admin/withdrawals/:id/cancel', { preHandler: authenticateAdmin }, admin.cancelWithdrawalRequest);
+  app.get('/api/admin/users', { preHandler: authenticateAdmin }, admin.users);
+  app.get('/api/admin/activity', { preHandler: authenticateAdmin }, admin.activity);
+  app.get('/api/admin/settings', { preHandler: authenticateAdmin }, admin.settings);
   app.patch('/api/admin/devices/:deviceId', { preHandler: authenticateAdmin }, admin.updateDevice);
   app.post('/api/admin/withdrawals', { preHandler: authenticateAdmin }, admin.manualWithdrawal);
   app.post('/api/withdrawals', { preHandler: authenticate }, withdrawal.create);

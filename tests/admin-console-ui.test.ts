@@ -127,6 +127,69 @@ async function unlock(ui: Ui) {
 function submit(ui: Ui) {
   ui.$('withdrawal-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
 }
+
+/** Routed sections: a real URL, a real view and a real dataset behind each. */
+const USERS_FIXTURE = [
+  { id: '11111111-1111-4111-8111-111111111111', email: 'ops@telebirr.et', available_balance: '5000.00', reserved_balance: '250.00', currency: 'ETB', withdrawal_count: 7, last_withdrawal_at: ago(600_000), is_admin_user: true },
+  { id: '22222222-2222-4222-8222-222222222222', email: 'merchant@example.com', available_balance: '120.50', reserved_balance: '0.00', currency: 'ETB', withdrawal_count: 1, last_withdrawal_at: null, is_admin_user: false }
+];
+
+const ACTIVITY_FIXTURE = [
+  { kind: 'webhook', title: 'payment.succeeded', detail: 'telebirr', level: 'info', settled: true, created_at: ago(5_000) },
+  { kind: 'webhook', title: 'payment.received', detail: 'cbe', level: 'error', settled: false, created_at: ago(60_000) },
+  { kind: 'outbox', title: 'withdrawal.queued', detail: 'published', level: 'info', settled: true, created_at: ago(120_000) }
+];
+
+const SETTINGS_FIXTURE = {
+  read_only: true,
+  environment: 'development',
+  local_infra_fallback: true,
+  channels: ['TELEBIRR', 'CBE'],
+  currency: 'ETB',
+  min_withdrawal: '1.00',
+  max_withdrawal: '100000.00',
+  worker_concurrency: 10,
+  processing_timeout_seconds: 300,
+  device_online_window_seconds: 90,
+  auto_refresh_seconds: 30,
+  health: {
+    devices_total: 5, devices_online: 3, pending_withdrawals: 2,
+    processing_withdrawals: 0, failed_withdrawals: 1, outbox_backlog: 0, rejected_webhooks: 1
+  }
+};
+
+const WITHDRAWAL_QUEUE = [
+  { id: 'w-1', transaction_id: 'WD-Q1', amount: '750.00', currency: 'ETB', destination: '0911000001', status: 'PENDING', channel: 'TELEBIRR', device_id: 'DEV-001', device_model: 'Tecno Spark 8', attempt_count: 0, failure_reason: null, notes: null, created_at: ago(30_000), updated_at: ago(30_000) },
+  { id: 'w-2', transaction_id: 'WD-Q2', amount: '99.00', currency: 'ETB', destination: '0911000002', status: 'COMPLETED', channel: 'CBE', device_id: 'DEV-003', device_model: 'Infinix Hot 30', attempt_count: 1, failure_reason: null, notes: null, created_at: ago(300_000), updated_at: ago(290_000) },
+  { id: 'w-3', transaction_id: 'WD-Q3', amount: '10.00', currency: 'ETB', destination: '0911000003', status: 'FAILED', channel: 'CBE', device_id: null, device_model: null, attempt_count: 3, failure_reason: 'Provider rejected the payout', notes: null, created_at: ago(600_000), updated_at: ago(590_000) }
+];
+
+async function bootRouted(path: string): Promise<Ui> {
+  // Boots the client against the requested URL so the router starts on that
+  // route, exactly as a hard refresh on that address would.
+  const dom = new JSDOM(PAGE, { runScripts: 'outside-only', url: `https://localhost${path}` });
+  const { window } = dom as unknown as { window: DOMWindow };
+  const document = window.document;
+  const calls: Call[] = [];
+  const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+  (window as unknown as Record<string, unknown>).fetch = (p: string, init?: RequestInit) => {
+    calls.push({ path: p, method: init?.method ?? 'GET', body: null });
+    if (p.startsWith('/api/admin/overview')) return json({ success: true, overview: OVERVIEW });
+    if (p.startsWith('/api/admin/devices')) return json({ success: true, devices: FLEET });
+    if (p.startsWith('/api/admin/transactions')) return json({ success: true, transactions: LEDGER });
+    if (p.startsWith('/api/admin/withdrawals')) return json({ success: true, withdrawals: WITHDRAWAL_QUEUE });
+    if (p.startsWith('/api/admin/users')) return json({ success: true, users: USERS_FIXTURE });
+    if (p.startsWith('/api/admin/activity')) return json({ success: true, activity: ACTIVITY_FIXTURE });
+    if (p.startsWith('/api/admin/settings')) return json({ success: true, settings: SETTINGS_FIXTURE });
+    return json({ success: false, error: 'not mocked' });
+  };
+  if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+  window.eval(CLIENT_SCRIPT);
+  (document.getElementById('key') as HTMLInputElement).value = KEY;
+  document.getElementById('unlock')?.click();
+  await new Promise((r) => setTimeout(r, 90));
+  return { document, window, calls, $: (id) => document.getElementById(id) as HTMLElement, all: (s) => Array.from(document.querySelectorAll(s)), rows: (id) => Array.from(document.querySelectorAll(`#${id} tr`)), text: (id) => (document.getElementById(id)?.textContent ?? '').trim(), wait: (ms) => new Promise((r) => setTimeout(r, ms)) };
+}
 describe('admin console shell', () => {
   it('renders the sidebar, header and every panel anchor', () => {
     const dom = new JSDOM(PAGE);
@@ -214,7 +277,135 @@ describe('admin console data binding', () => {
     expect(ui.text('clock-date')).not.toBe('—');
   }, DOM_TIMEOUT);
 });
-describe('admin console loading states', () => {
+describe('admin console routing', () => {
+  const ROUTES = [
+    { path: '/admin', view: 'view-dashboard', title: 'Welcome Back, Admin' },
+    { path: '/admin/transactions', view: 'view-transactions', title: 'Transactions' },
+    { path: '/admin/withdrawals', view: 'view-withdrawals', title: 'Withdrawals' },
+    { path: '/admin/devices', view: 'view-devices', title: 'Devices' },
+    { path: '/admin/users', view: 'view-users', title: 'Users' },
+    { path: '/admin/settings', view: 'view-settings', title: 'Settings' },
+    { path: '/admin/logs', view: 'view-logs', title: 'Logs' }
+  ];
+
+  it('renders a container for every sidebar route', () => {
+    const dom = new JSDOM(PAGE);
+    for (const route of ROUTES) {
+      expect(dom.window.document.getElementById(route.view), route.path).not.toBeNull();
+    }
+  });
+
+  it('exposes every route as a real sidebar link', () => {
+    const dom = new JSDOM(PAGE);
+    const links = Array.from(dom.window.document.querySelectorAll('.nav-item'));
+    expect(links).toHaveLength(8);
+    for (const route of ROUTES) {
+      const link = links.find((l) => l.getAttribute('data-route') === route.view.replace('view-', ''));
+      expect(link, route.path).toBeDefined();
+      // A real href keeps the URL bookmarkable and middle-click working.
+      expect(link?.getAttribute('href')).toBe(route.path);
+    }
+  });
+
+  it.each(ROUTES)('boots on $path and shows only that view', async ({ path, view, title }) => {
+    const ui = await bootRouted(path);
+    expect(ui.$(view).hidden).toBe(false);
+    for (const other of ROUTES.filter((r) => r.view !== view)) {
+      expect(ui.$(other.view).hidden, other.path).toBe(true);
+    }
+    expect(ui.text('view-title')).toContain(title);
+    const active = ui.all('.nav-item.is-active');
+    expect(active).toHaveLength(1);
+    expect(active[0]?.getAttribute('data-route')).toBe(view.replace('view-', ''));
+  }, DOM_TIMEOUT);
+
+  it('navigates between sections without a reload and loads that dataset', async () => {
+    const ui = await bootRouted('/admin');
+    const link = ui.document.querySelector('.nav-item[data-route="users"]') as HTMLElement;
+    link.dispatchEvent(new ui.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    await ui.wait(60);
+
+    expect(ui.$('view-users').hidden).toBe(false);
+    expect(ui.$('view-dashboard').hidden).toBe(true);
+    expect(ui.text('view-title')).toContain('Users');
+    // The dataset came from the API, not from a placeholder.
+    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/users'))).toBe(true);
+    expect(ui.rows('users-all')).toHaveLength(2);
+    expect(ui.$('users-all').textContent).toContain('ops@telebirr.et');
+    expect(ui.$('users-all').textContent).toContain('5,000.00');
+    expect(ui.$('users-all').textContent).toContain('Operator');
+    expect(ui.$('users-all').textContent).toContain('Standard');
+  }, DOM_TIMEOUT);
+});
+describe('admin console routed datasets', () => {
+  it('fills the transactions view from the ledger endpoint', async () => {
+    const ui = await bootRouted('/admin/transactions');
+    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/transactions'))).toBe(true);
+    expect(ui.text('txn-all-count')).toBe('13 transactions');
+    expect(ui.$('txn-all').textContent).toContain('WD-1000');
+    expect(ui.$('txn-all').textContent).toContain('COMPLETED');
+  }, DOM_TIMEOUT);
+
+  it('fills the withdrawals view and only offers cancel on queued payouts', async () => {
+    const ui = await bootRouted('/admin/withdrawals');
+    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/withdrawals'))).toBe(true);
+    expect(ui.text('wd-count')).toBe('3 withdrawals');
+    const rows = ui.rows('wd-all');
+    expect(rows).toHaveLength(3);
+    // A queued payout is cancellable; a settled one is not.
+    expect(rows[0]?.querySelector('[data-action="cancel"]')).not.toBeNull();
+    expect(rows[1]?.querySelector('[data-action="cancel"]')).toBeNull();
+    expect(ui.$('wd-all').textContent).toContain('Provider rejected the payout');
+  }, DOM_TIMEOUT);
+
+  it('filters the withdrawals queue by status', async () => {
+    const ui = await bootRouted('/admin/withdrawals');
+    const select = ui.$('wd-status') as HTMLSelectElement;
+    select.value = 'FAILED';
+    select.dispatchEvent(new ui.window.Event('change', { bubbles: true }));
+    await ui.wait(20);
+    expect(ui.rows('wd-all')).toHaveLength(1);
+    expect(ui.$('wd-all').textContent).toContain('WD-Q3');
+  }, DOM_TIMEOUT);
+
+  it('fills the devices view with fleet telemetry', async () => {
+    const ui = await bootRouted('/admin/devices');
+    expect(ui.rows('dev-all')).toHaveLength(5);
+    expect(ui.text('dev-stat-total')).toBe('5');
+    expect(ui.text('dev-stat-online')).toBe('3');
+    expect(ui.$('dev-all').textContent).toContain('DEV-001');
+    expect(ui.$('dev-all').textContent).toContain('78%');
+  }, DOM_TIMEOUT);
+
+  it('fills the logs view and filters by level', async () => {
+    const ui = await bootRouted('/admin/logs');
+    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/activity'))).toBe(true);
+    expect(ui.rows('log-all')).toHaveLength(3);
+    expect(ui.$('log-all').textContent).toContain('payment.succeeded');
+    const select = ui.$('log-level') as HTMLSelectElement;
+    select.value = 'error';
+    select.dispatchEvent(new ui.window.Event('change', { bubbles: true }));
+    await ui.wait(20);
+    expect(ui.rows('log-all')).toHaveLength(1);
+    expect(ui.$('log-all').textContent).toContain('ERROR');
+  }, DOM_TIMEOUT);
+
+  it('fills the settings view with config and health, never a secret', async () => {
+    const ui = await bootRouted('/admin/settings');
+    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/settings'))).toBe(true);
+    const body = ui.$('settings-body').textContent ?? '';
+    expect(body).toContain('Minimum withdrawal');
+    expect(body).toContain('100,000.00');
+    expect(body).toContain('Service health');
+    expect(body).toContain('Rejected webhooks');
+    expect(ui.text('settings-badge')).toBe('Read-only');
+    for (const secret of [process.env.ADMIN_API_KEY, process.env.JWT_SECRET, process.env.DATABASE_URL]) {
+      if (secret) expect(body.includes(secret)).toBe(false);
+    }
+  }, DOM_TIMEOUT);
+});
+// __LOADING_SUITES__
+  describe('admin console loading states', () => {
   it('paints skeletons on the opening unlock, then clears them', async () => {
     const ui = await boot();
     (ui.$('key') as HTMLInputElement).value = KEY;

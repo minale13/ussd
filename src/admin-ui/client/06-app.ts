@@ -118,6 +118,9 @@ export const CLIENT_APP = `
       state.firstLoad = false;
       state.unlocked = true;
       document.body.classList.add('unlocked');
+      // Unlocking must enable the section the operator is actually on, not just
+      // the dashboard panels.
+      loadView(state.route);
       if (!silent || !wasUnlocked) {
         notify(wasUnlocked ? 'Console synced with live gateway data.' : 'Console unlocked. Live settlement data is streaming.');
       }

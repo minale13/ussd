@@ -69,6 +69,50 @@ function seedTransactions() {
 let devices = seedDevices();
 let transactions = seedTransactions();
 
+/**
+ * The withdrawal queue mirrors the ledger but carries the operational columns
+ * the Withdrawals view needs: attempt count and failure reason, plus a stable id
+ * so a cancel can address one row.
+ */
+function seedWithdrawals() {
+  return transactions.map((row, index) => ({
+    id: `wd-${index + 1}`,
+    ...row,
+    destination_type: "PHONE",
+    notes: null,
+    failure_reason: row.status === "FAILED" ? "Provider rejected the payout" : null,
+    provider_transaction_id: row.status === "COMPLETED" ? `prov-${index}` : null,
+    target_device_id: row.device_id,
+    user_id: "11111111-1111-4111-8111-111111111111",
+    attempt_count: row.status === "COMPLETED" ? 1 : row.status === "FAILED" ? 3 : 0,
+    updated_at: row.created_at
+  }));
+}
+
+/** Sample wallets so the Users view has real balances to render. */
+function seedUsers() {
+  return [
+    { id: "11111111-1111-4111-8111-111111111111", email: "ops@telebirr.et", available_balance: "18450.25", reserved_balance: "2100.00", currency: "ETB", has_wallet: true, withdrawal_count: 5, last_withdrawal_at: secondsAgo(95), is_admin_user: true },
+    { id: "22222222-2222-4222-8222-222222222222", email: "merchant@example.com", available_balance: "1200.00", reserved_balance: "0.00", currency: "ETB", has_wallet: true, withdrawal_count: 2, last_withdrawal_at: secondsAgo(14 * 60), is_admin_user: false },
+    { id: "33333333-3333-4333-8333-333333333333", email: "agent@merchant.et", available_balance: "0.00", reserved_balance: "0.00", currency: "ETB", has_wallet: false, withdrawal_count: 0, last_withdrawal_at: null, is_admin_user: false }
+  ];
+}
+
+/** Webhooks, attempts and outbox delivery, merged into one activity feed. */
+function seedActivity() {
+  return [
+    { kind: "webhook", title: "payment.succeeded", detail: "telebirr", level: "info", settled: true, created_at: secondsAgo(30) },
+    { kind: "attempt", title: "payout attempt 1", detail: "COMPLETED", level: "info", settled: true, created_at: secondsAgo(95) },
+    { kind: "outbox", title: "withdrawal.completed", detail: "published", level: "info", settled: true, created_at: secondsAgo(140) },
+    { kind: "webhook", title: "payment.received", detail: "cbe", level: "error", settled: false, created_at: secondsAgo(52 * 60) },
+    { kind: "outbox", title: "withdrawal.failed", detail: "unpublished", level: "warn", settled: false, created_at: secondsAgo(3 * 60 * 60) }
+  ];
+}
+
+let withdrawals = seedWithdrawals();
+let users = seedUsers();
+let activity = seedActivity();
+
 const reset = () => {
   devices = seedDevices();
   transactions = seedTransactions();
@@ -155,8 +199,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   const route = url.pathname;
 
-  // The console itself. "/" is an alias so the preview always lands on it.
-  if (route === "/admin" || route === "/") {
+  // The console itself. "/" is an alias so the preview always lands on it, and
+  // every routed section serves the same shell - the client router reads the
+  // pathname and shows the matching view, exactly as the real server does.
+  const CONSOLE_SECTIONS = ["/admin", "/admin/transactions", "/admin/withdrawals", "/admin/devices", "/admin/users", "/admin/settings", "/admin/logs"];
+  if (CONSOLE_SECTIONS.includes(route) || route === "/") {
     if (!view) {
       try {
         view = await loadConsole();
@@ -203,6 +250,77 @@ const server = http.createServer(async (req, res) => {
       const requested = Number(url.searchParams.get("limit") ?? 50);
       const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 200) : 50;
       return sendJson(res, 200, { success: true, transactions: emptied(transactions).slice(0, limit) });
+    }
+
+    // The queue applies the same status/channel filters as the real controller,
+    // so an operator can preview a filtered view without a database.
+    if (req.method === "GET" && route === "/api/admin/withdrawals") {
+      const status = url.searchParams.get("status");
+      const channel = url.searchParams.get("channel");
+      const requested = Number(url.searchParams.get("limit") ?? 25);
+      const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 200) : 25;
+      let rows = emptied(withdrawals);
+      if (status) rows = rows.filter((row) => row.status === status);
+      if (channel) rows = rows.filter((row) => row.channel === channel);
+      return sendJson(res, 200, { success: true, withdrawals: rows.slice(0, limit) });
+    }
+
+    // Cancelling a settled payout is refused, mirroring the real state machine.
+    if (req.method === "POST" && route.startsWith("/api/admin/withdrawals/") && route.endsWith("/cancel")) {
+      const id = decodeURIComponent(route.slice("/api/admin/withdrawals/".length, -"/cancel".length));
+      const row = withdrawals.find((w) => w.id === id);
+      if (!row) return sendJson(res, 404, { success: false, error: "Withdrawal not found" });
+      if (row.status !== "PENDING") {
+        return sendJson(res, 409, { success: false, error: `A ${row.status} withdrawal can no longer be cancelled` });
+      }
+      row.status = "CANCELLED";
+      console.log("[preview] withdrawal", row.transaction_id, "→ CANCELLED");
+      return sendJson(res, 200, { success: true, withdrawal: row });
+    }
+
+    if (req.method === "GET" && route === "/api/admin/users") {
+      const requested = Number(url.searchParams.get("limit") ?? 25);
+      const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 200) : 25;
+      return sendJson(res, 200, { success: true, users: users.slice(0, limit) });
+    }
+
+    if (req.method === "GET" && route === "/api/admin/activity") {
+      const level = url.searchParams.get("level");
+      const requested = Number(url.searchParams.get("limit") ?? 50);
+      const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 200) : 50;
+      const rows = level ? activity.filter((row) => row.level === level) : activity;
+      return sendJson(res, 200, { success: true, activity: rows.slice(0, limit) });
+    }
+
+    if (req.method === "GET" && route === "/api/admin/settings") {
+      // Read-only and deliberately free of any secret: this is what the browser
+      // is allowed to see.
+      const online = devices.filter((d) => d.online).length;
+      return sendJson(res, 200, {
+        success: true,
+        settings: {
+          read_only: true,
+          environment: "development",
+          local_infra_fallback: true,
+          channels: ["TELEBIRR", "CBE"],
+          currency: "ETB",
+          min_withdrawal: "1.00",
+          max_withdrawal: "100000.00",
+          worker_concurrency: 10,
+          processing_timeout_seconds: 300,
+          device_online_window_seconds: 90,
+          auto_refresh_seconds: 30,
+          health: {
+            devices_total: devices.length,
+            devices_online: online,
+            pending_withdrawals: withdrawals.filter((w) => w.status === "PENDING").length,
+            processing_withdrawals: withdrawals.filter((w) => w.status === "PROCESSING").length,
+            failed_withdrawals: withdrawals.filter((w) => w.status === "FAILED").length,
+            outbox_backlog: activity.filter((row) => row.level === "warn").length,
+            rejected_webhooks: activity.filter((row) => row.level === "error").length
+          }
+        }
+      });
     }
 
     if (req.method === "PATCH" && route.startsWith("/api/admin/devices/")) {
@@ -326,6 +444,7 @@ function listen(candidate) {
     const url = `http://localhost:${port}/admin`;
     console.log("─".repeat(66));
     console.log(`  Admin dashboard   →  ${url}`);
+    console.log(`  routed sections  →  ${["transactions", "withdrawals", "devices", "users", "settings", "logs"].map((s) => `${url}/${s}`).join("\n                       ")}`);
     console.log(`  fleet             →  ${devices.length} devices, ${transactions.length} payouts · any key unlocks`);
     console.log(`  empty states      →  ${url}?devices=0     ${url}?txns=0`);
     console.log(`  dispatch error    →  ${url}?reject=1  then submit a payout`);
