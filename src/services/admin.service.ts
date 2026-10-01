@@ -1,11 +1,26 @@
 import { pool } from '../db.js';
 
+/**
+ * Headline settlement figures for the admin console.
+ *
+ * The three lifetime totals are the numbers an operator reconciles against, so
+ * they are cast to text to hand back NUMERIC without JS float rounding. The
+ * `*_today` columns are the same measures restricted to the current gateway
+ * day; they are additive, so an older deployment that has not been migrated
+ * simply reports null and the UI shows 0.00 rather than inventing a value.
+ */
 export async function getFinancialOverview() {
   const result = await pool.query(`
     SELECT
       COALESCE((SELECT SUM(amount) FROM wallet_transactions WHERE type IN ('CASH_IN', 'DEPOSIT') AND status = 'POSTED'), 0)::text AS total_cash_in,
       COALESCE((SELECT SUM(amount) FROM withdrawals WHERE status = 'COMPLETED'), 0)::text AS total_withdrawals,
-      COALESCE((SELECT SUM(available_balance) FROM wallets), 0)::text AS remaining_balance`);
+      COALESCE((SELECT SUM(available_balance) FROM wallets), 0)::text AS remaining_balance,
+      COALESCE((SELECT SUM(amount) FROM wallet_transactions
+        WHERE type IN ('CASH_IN', 'DEPOSIT') AND status = 'POSTED'
+          AND created_at >= date_trunc('day', now())), 0)::text AS cash_in_today,
+      COALESCE((SELECT SUM(amount) FROM withdrawals
+        WHERE status = 'COMPLETED' AND created_at >= date_trunc('day', now())), 0)::text AS withdrawals_today,
+      COALESCE((SELECT SUM(available_balance) FROM wallets), 0)::text AS balance_today`);
   return result.rows[0];
 }
 

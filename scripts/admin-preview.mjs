@@ -75,7 +75,7 @@ try {
 
   const page = await (await fetch(`${base}/admin`)).text();
   check('/admin serves the console', page.includes('id="devices"'));
-  check('device fleet panel present', page.includes('Device fleet'));
+  check('device fleet panel present', page.includes('Device Fleet'));
   check('transaction history panel present', page.includes('Transaction history'));
   check('target device dropdown present', page.includes('id="target-dropdown"'));
   check('no mobile app markup leaked in', !page.includes('listening-orb') && !page.includes('id="onboarding"'));
