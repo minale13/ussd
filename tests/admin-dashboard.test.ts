@@ -237,9 +237,6 @@ async function boot(options: { devices?: Device[]; transactions?: Txn[] } = {}) 
   };
 }
 
-type Ui = Awaited<ReturnType<typeof boot>>;
-
-
 describe('admin dashboard page', () => {
   it('serves a standalone console carrying no mobile dashboard markup', () => {
     expect(pageReply.headers['cache-control']).toBe('no-store');

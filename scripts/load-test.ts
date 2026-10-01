@@ -7,7 +7,7 @@ const userId = process.env.LOAD_TEST_USER_ID;
 if (!userId) throw new Error('Set LOAD_TEST_USER_ID to a seeded test user');
 
 const started = performance.now();
-const responses = await Promise.all(Array.from({ length: count }, (_, index) => {
+const responses = await Promise.all(Array.from({ length: count }, () => {
   const requestStarted = performance.now();
   return fetch(`${baseUrl}/api/withdrawals`, {
     method: 'POST',
