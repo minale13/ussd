@@ -18,10 +18,37 @@ const start = process.argv.includes('--open');
 
 if (start) {
   /**
-   * Opens the admin preview in the default browser. The server itself never
-   * opens a tab (PREVIEW_NO_OPEN), so this is the single place that does.
+   * Opens the admin console in the default browser.
+   *
+   * The port is discovered rather than assumed: the server falls back to the
+   * next free port when 3000 is taken, so a hardcoded URL would open a dead
+   * tab whenever something else (the Android preview) already holds 3000.
    */
-  const url = 'http://localhost:3001/admin';
+  async function findUrl() {
+    for (let candidate = 3000; candidate <= 3020; candidate++) {
+      const url = `http://127.0.0.1:${candidate}/admin`;
+      try {
+        // Generous: the console loads its page before /__status can answer,
+        // and a too-tight budget would race past a live server.
+        const response = await fetch(`http://127.0.0.1:${candidate}/__status`, {
+          signal: AbortSignal.timeout(1500),
+        });
+        if (!response.ok) continue;
+        const body = await response.json();
+        // Only the admin console reports `page`; the Android preview does not.
+        if (body && body.page) return url;
+      } catch {
+        // Nothing listening on this port.
+      }
+    }
+    return null;
+  }
+
+  const url = await findUrl();
+  if (!url) {
+    console.error('No admin preview is running. Start it with: npm run admin:ui');
+    process.exit(1);
+  }
   try {
     if (process.platform === 'win32') {
       // `start` needs the (empty) window title first, or it treats the URL as one.
