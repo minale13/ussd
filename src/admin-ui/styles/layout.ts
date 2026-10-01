@@ -95,6 +95,17 @@ export const LAYOUT = `
 .system-status.is-offline{color:#FFD6D6;background:rgba(239,68,68,.09);border-color:rgba(239,68,68,.3)}
 .system-status.is-offline .dot{background:var(--danger)}
 
+/* Live-stream indicator: green when SSE is connected, muted while polling. */
+.stream-status{
+  display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 13px;
+  border-radius:999px;font-size:12.5px;font-weight:600;color:var(--text-2);
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+}
+.stream-status .dot{width:7px;height:7px;border-radius:50%;background:rgba(143,168,195,.7)}
+.stream-status.is-live{color:#BDF5E0;background:rgba(0,229,195,.09);border-color:rgba(0,229,195,.26)}
+.stream-status.is-live .dot{background:var(--primary);animation:pulse-dot 2.4s ease-in-out infinite}
+@media(max-width:720px){ .stream-status{display:none} }
+
 .icon-btn{
   position:relative;width:36px;height:36px;flex:none;
   display:grid;place-items:center;border-radius:10px;color:var(--text-2);

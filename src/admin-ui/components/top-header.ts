@@ -16,6 +16,7 @@ export function TopHeader() {
   </div>
   <div class="header-right">
     <div class="system-status" id="gateway-status"><span class="dot"></span><span id="gateway-status-text">Checking gateway</span></div>
+    <div class="stream-status" id="stream-status" title="Live gateway event stream"><span class="dot"></span><span>Polling</span></div>
     <button class="icon-btn" id="refresh" type="button" title="Refresh dashboard" aria-label="Refresh dashboard">${icon('refresh', 18)}</button>
     <button class="icon-btn" id="notifications" type="button" title="Notifications" aria-label="Notifications">
       ${icon('bell', 18)}

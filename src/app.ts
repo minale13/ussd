@@ -7,6 +7,8 @@ import * as withdrawal from './controllers/withdrawal.controller.js';
 import * as webhook from './controllers/webhook.controller.js';
 import * as admin from './controllers/admin.controller.js';
 import { dashboard as adminDashboard, dashboardScript as adminDashboardScript } from './controllers/admin-dashboard.controller.js';
+import { eventStream } from './controllers/admin-events.controller.js';
+import { smsCallback, smsEvents, authenticateGatewayDevice } from './controllers/sms.controller.js';
 import { env } from './config/env.js';
 import { authenticateAdmin } from './middleware/admin-auth.js';
 
@@ -43,5 +45,14 @@ export function buildApp() {
   app.get('/api/withdrawals/:id', { preHandler: authenticate }, withdrawal.get);
   app.post('/api/withdrawals/:id/cancel', { preHandler: authenticate }, withdrawal.cancel);
   app.post('/api/webhooks/payment', { config: { rawBody: true } }, webhook.payment);
+
+  // Inbound SMS forwarded by the Android gateway. Authenticated with the same
+  // device identity the phone already uses for polling.
+  app.post('/api/gateway/sms-callback', { preHandler: authenticateGatewayDevice }, smsCallback);
+
+  // SMS activity for the console, and the live event stream that pushes new
+  // messages to an open dashboard. Both are admin-authenticated.
+  app.get('/api/admin/sms', { preHandler: authenticateAdmin }, smsEvents);
+  app.get('/api/admin/stream', { preHandler: authenticateAdmin }, eventStream);
   return app;
 }

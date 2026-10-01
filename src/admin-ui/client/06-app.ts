@@ -119,8 +119,9 @@ export const CLIENT_APP = `
       state.unlocked = true;
       document.body.classList.add('unlocked');
       // Unlocking must enable the section the operator is actually on, not just
-      // the dashboard panels.
+      // the dashboard panels, and open the live stream for pushes.
       loadView(state.route);
+      openEventStream();
       if (!silent || !wasUnlocked) {
         notify(wasUnlocked ? 'Console synced with live gateway data.' : 'Console unlocked. Live settlement data is streaming.');
       }
@@ -130,6 +131,9 @@ export const CLIENT_APP = `
         message = 'Admin key rejected. Check the ADMIN_API_KEY value.';
         state.unlocked = false;
         document.body.classList.remove('unlocked');
+        // The stream is authenticated with the same key, so it is no longer
+        // trustworthy once that key is refused.
+        closeEventStream();
       }
       setGatewayStatus(false, 'System Offline');
       notify(message, 'error');

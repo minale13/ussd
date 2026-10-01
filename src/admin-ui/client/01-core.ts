@@ -30,7 +30,10 @@ export const CLIENT_CORE = `
     // return to the page the operator was on when they leave and come back.
     route: 'dashboard',
     txnPage: 1,
-    wdPage: 1
+    wdPage: 1,
+    // True while the server-sent event stream is connected. The 30s poll runs
+    // regardless, so a dropped stream degrades rather than breaks.
+    streaming: false
   };
   var toastTimer = null;
   var submitMarkup = null;
