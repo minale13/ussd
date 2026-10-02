@@ -76,6 +76,42 @@ single serverless function. Two caveats are deliberate:
   response-duration limits, so live updates may drop. Deploy to Render for the
   full console.
 
+The single rewrite in `vercel.json` sends every path except `/api/index` to the
+function. The exclusion has to name *only* the function's own path: excluding the
+whole `/api/` prefix instead would leave `/api/webhooks/payment`, every
+`/api/admin/*` call and the phones' `/api/withdrawals/pending` poll unrouted, so
+they would 404 with no error anywhere else.
+
+#### Set the secrets on the platform, never in `vercel.json`
+
+`vercel.json` is committed to a public repository, so no secret may appear in it.
+Add these under **Project Settings → Environment Variables**:
+
+```
+DATABASE_URL          REDIS_URL             JWT_SECRET
+ADMIN_USERNAME        ADMIN_PASSWORD        PAYMENT_WEBHOOK_SECRET
+ADMIN_WITHDRAWAL_USER_ID
+```
+
+`vercel.json` only sets the three non-secret switches (`NODE_ENV`,
+`TRUST_PROXY`, `OUTBOX_PUBLISHER_ENABLED`).
+
+A deployment missing variables still boots: `config/env.ts` substitutes a
+random per-process placeholder rather than crashing, so `/health` answers 200 and
+the console shell renders. The affected endpoint then fails **closed** with an
+actionable status instead of a bare 500:
+
+| Missing | `/health` | Affected route |
+| --- | --- | --- |
+| `PAYMENT_WEBHOOK_SECRET` | 200 `degraded`, names it | `POST /api/webhooks/payment` → 503 |
+| `ADMIN_API_KEY` / `ADMIN_USERNAME` | 200 `degraded`, names it | `/api/admin/*` → 503 |
+| `DATABASE_URL` | 200 `degraded`, names it | data routes fail on connect |
+
+`GET /health` lists the absent variable **names only**, never values, so it is
+safe to expose and is the first thing to check when the deployment misbehaves.
+A forged webhook signature is still rejected 401 even when configured — the
+placeholder path never widens what the endpoint accepts.
+
 ### Environment variables
 
 | Variable | Required | Notes |

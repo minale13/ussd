@@ -16,7 +16,7 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/index$).*)",
       "destination": "/api/index"
     }
   ]
