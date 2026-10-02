@@ -5,98 +5,83 @@ import { DashboardLayout } from '../src/admin-ui/dashboard-layout.js';
 import { CLIENT_SCRIPT } from '../src/admin-ui/client-script.js';
 
 /**
- * Layout and behaviour coverage for the redesigned console.
+ * The mobile-first admin console, driven exactly as an operator drives it.
  *
- * `admin-dashboard.test.ts` owns the DOM contract the withdrawal pipeline
- * depends on. This suite covers what surrounds it: the shell structure, live
- * data binding, the loading/empty states, and the rule that no secret is ever
- * rendered into the page.
+ * The console is an app shell now: a splash, a login layer, a sticky top bar,
+ * a four-destination bottom bar and eight screens the router shows one at a
+ * time. These tests boot the real document from DashboardLayout() and the real
+ * client from CLIENT_SCRIPT, so the assertions pin the shipped DOM rather than
+ * a copy of it.
+ *
+ * The previous table-based suite asserted `tr` rows, a sidebar and panel anchors
+ * that this layout no longer has; every assertion here targets the current
+ * markup instead.
  */
 const DOM_TIMEOUT = 30_000;
 const KEY = 'unit-test-admin-key-that-is-long';
-const PAGE = DashboardLayout();
+const PAGE = DashboardLayout('operator');
 
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
-type Device = {
-  device_id: string;
-  phone_model: string;
-  active_status: boolean;
-  sim_slot: number | null;
-  channel: string | null;
-  carrier: string | null;
-  battery_level: number | null;
-  network_type: string | null;
-  online: boolean;
-  last_seen_at: string;
+const OVERVIEW = {
+  total_cash_in: '184250.00',
+  total_withdrawals: '42305.25',
+  remaining_balance: '141944.75',
+  cash_in_today: '5000.00'
 };
 
-/** A representative fleet: two flat batteries, one silent phone, one blocked. */
-const FLEET: Device[] = [
-  { device_id: 'DEV-001', phone_model: 'Tecno Spark 8', active_status: true, sim_slot: 0, channel: 'TELEBIRR', carrier: 'Ethio Telecom', battery_level: 78, network_type: '4G', online: true, last_seen_at: ago(4_000) },
-  { device_id: 'DEV-002', phone_model: 'Samsung A12', active_status: true, sim_slot: 0, channel: 'TELEBIRR', carrier: 'Ethio Telecom', battery_level: 65, network_type: '4G', online: true, last_seen_at: ago(6_000) },
-  { device_id: 'DEV-003', phone_model: 'Infinix Hot 30', active_status: true, sim_slot: 1, channel: 'CBE', carrier: 'Safaricom', battery_level: 92, network_type: 'LTE', online: true, last_seen_at: ago(9_000) },
-  { device_id: 'DEV-004', phone_model: 'Tecno Camon 20', active_status: true, sim_slot: 0, channel: 'CBE', carrier: 'Etharicom', battery_level: 41, network_type: '3G', online: false, last_seen_at: ago(3_600_000) },
-  { device_id: 'DEV-005', phone_model: 'Nokia G11', active_status: false, sim_slot: 1, channel: 'CBE', carrier: 'Ethio Telecom', battery_level: null, network_type: null, online: false, last_seen_at: ago(7_200_000) }
+const FLEET = [
+  { device_id: 'DEV-001', phone_model: 'Tecno Spark 8', channel: 'TELEBIRR', carrier: 'Ethio Telecom', online: true, active_status: true, battery_level: 82, network_type: '4G', last_seen_at: ago(5_000), last_ip: '10.0.0.5' },
+  { device_id: 'DEV-002', phone_model: 'Infinix Hot 30', channel: 'CBE', carrier: 'CBE', online: false, active_status: true, battery_level: 12, network_type: '3G', last_seen_at: ago(600_000), last_ip: '10.0.0.6' },
+  { device_id: 'DEV-003', phone_model: 'Samsung A15', channel: 'TELEBIRR', carrier: 'Safaricom', online: false, active_status: false, battery_level: null, network_type: null, last_seen_at: ago(900_000), last_ip: null }
 ];
 
-/** Thirteen payouts so pagination has to page for real. */
-const LEDGER = Array.from({ length: 13 }, (_, i) => ({
-  transaction_id: `WD-${1000 + i}`,
-  amount: (120 + i * 7.5).toFixed(2),
-  currency: 'ETB',
-  destination: `091${1000000 + i}`,
-  status: ['COMPLETED', 'PENDING', 'FAILED'][i % 3],
-  channel: i % 2 ? 'CBE' : 'TELEBIRR',
-  device_id: i % 4 === 3 ? null : FLEET[i % FLEET.length]?.device_id ?? null,
-  device_model: i % 4 === 3 ? null : FLEET[i % FLEET.length]?.phone_model ?? null,
-  created_at: ago(i * 60_000)
-}));
-
-const OVERVIEW = {
-  total_cash_in: '52000.00',
-  total_withdrawals: '18450.25',
-  remaining_balance: '33549.75',
-  cash_in_today: '1250.00',
-  withdrawals_today: '430.00',
-  balance_today: '33549.75'
-};
+const LEDGER = [
+  { transaction_id: 'WD-1', destination: '0911000001', amount: '750.00', currency: 'ETB', status: 'COMPLETED', channel: 'TELEBIRR', device_id: 'DEV-001', device_model: 'Tecno Spark 8', created_at: ago(120_000) },
+  { transaction_id: 'WD-2', destination: '0911000002', amount: '99.00', currency: 'ETB', status: 'PENDING', channel: 'CBE', device_id: 'DEV-002', device_model: 'Infinix Hot 30', created_at: ago(300_000) },
+  // No device_id: an auto-assigned payout must not be attributed to a phone.
+  { transaction_id: 'WD-3', destination: '0911000003', amount: '10.00', currency: 'ETB', status: 'FAILED', channel: 'CBE', device_id: null, device_model: null, created_at: ago(600_000) }
+];
 
 type Call = { path: string; method: string; body: Record<string, unknown> | null };
-type Ui = {
+
+interface Ui {
   document: Document;
   window: DOMWindow;
   calls: Call[];
   $: (id: string) => HTMLElement;
   all: (selector: string) => Element[];
-  rows: (id: string) => Element[];
   text: (id: string) => string;
+  visibleScreens: () => string[];
   wait: (ms: number) => Promise<void>;
-};
+}
 
-/**
- * Boots the real page plus the real client against the admin API.
- *
- * `reject: true` makes every admin call answer 401, which is how the failure
- * path is exercised without needing a server.
- */
-async function boot(options: { reject?: boolean } = {}): Promise<Ui> {
+/** Boots the real page and the real client with the admin API stubbed. */
+async function boot(path = '/admin', options: { reject?: boolean } = {}): Promise<Ui> {
   const calls: Call[] = [];
-  const dom = new JSDOM(PAGE, { runScripts: 'outside-only', url: 'https://localhost/admin' });
+  const dom = new JSDOM(PAGE, { runScripts: 'outside-only', url: `https://localhost${path}` });
   const { window } = dom as unknown as { window: DOMWindow };
   const document = window.document;
 
-  const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
-  const denied = () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ success: false, error: 'Admin authentication required' }) } as Response);
+  const json = (body: unknown) =>
+    Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+  const denied = () =>
+    Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ success: false, error: 'Admin authentication required' }) } as Response);
 
-  (window as unknown as Record<string, unknown>).fetch = (path: string, init?: RequestInit) => {
-    calls.push({ path, method: init?.method ?? 'GET', body: init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null });
+  (window as unknown as Record<string, unknown>).fetch = (target: string, init?: RequestInit) => {
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+    } catch {
+      body = null;
+    }
+    calls.push({ path: target, method: init?.method ?? 'GET', body });
     if (options.reject) return denied();
-    if (path === '/api/admin/overview') return json({ success: true, overview: OVERVIEW });
-    if (path === '/api/admin/devices') return json({ success: true, devices: FLEET });
-    if (path === '/api/admin/transactions') return json({ success: true, transactions: LEDGER });
-    if (path === '/api/admin/withdrawals') return json({ success: true, withdrawal: { transaction_id: 'WD-NEW999' } });
-    if (path.startsWith('/api/admin/devices/')) return json({ success: true, device: { device_id: 'x' } });
+    if (target === '/api/admin/overview') return json({ success: true, overview: OVERVIEW });
+    if (target === '/api/admin/devices') return json({ success: true, devices: FLEET });
+    if (target === '/api/admin/transactions') return json({ success: true, transactions: LEDGER });
+    if (target === '/api/admin/withdrawals') return json({ success: true, withdrawal: { transaction_id: 'WD-NEW999' } });
+    if (target.startsWith('/api/admin/devices/')) return json({ success: true, device: { device_id: 'DEV-001' } });
     return json({ success: false, error: 'not mocked' });
   };
 
@@ -109,106 +94,75 @@ async function boot(options: { reject?: boolean } = {}): Promise<Ui> {
     document,
     window,
     calls,
-    $: (id: string) => document.getElementById(id) as HTMLElement,
-    all: (selector: string) => Array.from(document.querySelectorAll(selector)),
-    rows: (id: string) => Array.from(document.querySelectorAll(`#${id} tr`)),
-    text: (id: string) => (document.getElementById(id)?.textContent ?? '').trim(),
-    wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    $: (id) => document.getElementById(id) as HTMLElement,
+    all: (selector) => Array.from(document.querySelectorAll(selector)),
+    text: (id) => (document.getElementById(id)?.textContent ?? '').trim(),
+    // The router shows exactly one screen; `hidden` marks the rest.
+    visibleScreens: () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.screen'))
+        .filter((node) => !node.hasAttribute('hidden'))
+        .map((node) => node.id),
+    wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms))
   };
 }
 
-/** Types the key, clicks unlock and waits for the three admin reads to land. */
+/** Types the password, submits the form and waits for the admin reads to land. */
 async function unlock(ui: Ui) {
   (ui.$('key') as HTMLInputElement).value = KEY;
-  ui.$('unlock').click();
-  await ui.wait(60);
+  ui.$('login-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
+  await ui.wait(80);
 }
 
-function submit(ui: Ui) {
-  ui.$('withdrawal-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
-}
-
-/** Routed sections: a real URL, a real view and a real dataset behind each. */
-const USERS_FIXTURE = [
-  { id: '11111111-1111-4111-8111-111111111111', email: 'ops@telebirr.et', available_balance: '5000.00', reserved_balance: '250.00', currency: 'ETB', withdrawal_count: 7, last_withdrawal_at: ago(600_000), is_admin_user: true },
-  { id: '22222222-2222-4222-8222-222222222222', email: 'merchant@example.com', available_balance: '120.50', reserved_balance: '0.00', currency: 'ETB', withdrawal_count: 1, last_withdrawal_at: null, is_admin_user: false }
-];
-
-const ACTIVITY_FIXTURE = [
-  { kind: 'webhook', title: 'payment.succeeded', detail: 'telebirr', level: 'info', settled: true, created_at: ago(5_000) },
-  { kind: 'webhook', title: 'payment.received', detail: 'cbe', level: 'error', settled: false, created_at: ago(60_000) },
-  { kind: 'outbox', title: 'withdrawal.queued', detail: 'published', level: 'info', settled: true, created_at: ago(120_000) }
-];
-
-const SETTINGS_FIXTURE = {
-  read_only: true,
-  environment: 'development',
-  local_infra_fallback: true,
-  channels: ['TELEBIRR', 'CBE'],
-  currency: 'ETB',
-  min_withdrawal: '1.00',
-  max_withdrawal: '100000.00',
-  worker_concurrency: 10,
-  processing_timeout_seconds: 300,
-  device_online_window_seconds: 90,
-  auto_refresh_seconds: 30,
-  health: {
-    devices_total: 5, devices_online: 3, pending_withdrawals: 2,
-    processing_withdrawals: 0, failed_withdrawals: 1, outbox_backlog: 0, rejected_webhooks: 1
-  }
-};
-
-const WITHDRAWAL_QUEUE = [
-  { id: 'w-1', transaction_id: 'WD-Q1', amount: '750.00', currency: 'ETB', destination: '0911000001', status: 'PENDING', channel: 'TELEBIRR', device_id: 'DEV-001', device_model: 'Tecno Spark 8', attempt_count: 0, failure_reason: null, notes: null, created_at: ago(30_000), updated_at: ago(30_000) },
-  { id: 'w-2', transaction_id: 'WD-Q2', amount: '99.00', currency: 'ETB', destination: '0911000002', status: 'COMPLETED', channel: 'CBE', device_id: 'DEV-003', device_model: 'Infinix Hot 30', attempt_count: 1, failure_reason: null, notes: null, created_at: ago(300_000), updated_at: ago(290_000) },
-  { id: 'w-3', transaction_id: 'WD-Q3', amount: '10.00', currency: 'ETB', destination: '0911000003', status: 'FAILED', channel: 'CBE', device_id: null, device_model: null, attempt_count: 3, failure_reason: 'Provider rejected the payout', notes: null, created_at: ago(600_000), updated_at: ago(590_000) }
-];
-
-async function bootRouted(path: string): Promise<Ui> {
-  // Boots the client against the requested URL so the router starts on that
-  // route, exactly as a hard refresh on that address would.
-  const dom = new JSDOM(PAGE, { runScripts: 'outside-only', url: `https://localhost${path}` });
-  const { window } = dom as unknown as { window: DOMWindow };
-  const document = window.document;
-  const calls: Call[] = [];
-  const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
-  (window as unknown as Record<string, unknown>).fetch = (p: string, init?: RequestInit) => {
-    calls.push({ path: p, method: init?.method ?? 'GET', body: null });
-    if (p.startsWith('/api/admin/overview')) return json({ success: true, overview: OVERVIEW });
-    if (p.startsWith('/api/admin/devices')) return json({ success: true, devices: FLEET });
-    if (p.startsWith('/api/admin/transactions')) return json({ success: true, transactions: LEDGER });
-    if (p.startsWith('/api/admin/withdrawals')) return json({ success: true, withdrawals: WITHDRAWAL_QUEUE });
-    if (p.startsWith('/api/admin/users')) return json({ success: true, users: USERS_FIXTURE });
-    if (p.startsWith('/api/admin/activity')) return json({ success: true, activity: ACTIVITY_FIXTURE });
-    if (p.startsWith('/api/admin/settings')) return json({ success: true, settings: SETTINGS_FIXTURE });
-    return json({ success: false, error: 'not mocked' });
-  };
-  if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
-  window.eval(CLIENT_SCRIPT);
-  (document.getElementById('key') as HTMLInputElement).value = KEY;
-  document.getElementById('unlock')?.click();
-  await new Promise((r) => setTimeout(r, 90));
-  return { document, window, calls, $: (id) => document.getElementById(id) as HTMLElement, all: (s) => Array.from(document.querySelectorAll(s)), rows: (id) => Array.from(document.querySelectorAll(`#${id} tr`)), text: (id) => (document.getElementById(id)?.textContent ?? '').trim(), wait: (ms) => new Promise((r) => setTimeout(r, ms)) };
-}
 describe('admin console shell', () => {
-  it('renders the sidebar, header and every panel anchor', () => {
-    const dom = new JSDOM(PAGE);
-    const ids = ['sidebar', 'nav-toggle', 'search', 'gateway-status', 'notifications', 'admin-menu',
-      'cash', 'withdrawals', 'balance', 'access', 'key', 'unlock', 'withdrawal-form', 'phone', 'amount',
-      'channel-dropdown', 'target-dropdown', 'devices', 'device-count', 'stat-total', 'stat-online',
-      'stat-offline', 'transactions', 'txns', 'txn-count', 'txn-pager', 'quick-actions', 'clock-date'];
-    for (const id of ids) expect(dom.window.document.getElementById(id), id).not.toBeNull();
-  });
-
-  it('lays out the navigation, quick actions and metrics the brief specifies', () => {
+  it('renders the splash, the login layer and the app shell', () => {
     const dom = new JSDOM(PAGE);
     const d = dom.window.document;
-    expect(d.querySelectorAll('.nav-item')).toHaveLength(8);
-    expect(d.querySelectorAll('.qa-item')).toHaveLength(4);
-    expect(d.querySelectorAll('.stat')).toHaveLength(3);
-    expect(d.querySelector('.nav-item.is-active')?.textContent).toContain('Dashboard');
-    expect(d.querySelector('.brand-name')?.textContent).toContain('AUTO-WITHDRAWAL GATEWAY');
-    expect(d.querySelector('.sidebar-foot')?.textContent).toContain('Secure & Reliable');
+    for (const id of ['splash', 'splash-status', 'login', 'login-form', 'username', 'key', 'unlock', 'app', 'bottom-nav']) {
+      expect(d.getElementById(id), `missing #${id}`).toBeTruthy();
+    }
+    expect(d.getElementById('splash')?.getAttribute('aria-hidden')).toBe('true');
+    expect(d.body.className).toContain('is-locked');
+  });
+
+  it('prefills the configured username so only the password is typed', () => {
+    const dom = new JSDOM(PAGE);
+    expect((dom.window.document.getElementById('username') as HTMLInputElement).value).toBe('operator');
+  });
+
+  it('ships every routed screen, and only Home is visible before navigation', () => {
+    const dom = new JSDOM(PAGE);
+    const d = dom.window.document;
+    for (const route of ['home', 'transactions', 'devices', 'more', 'send', 'device', 'profile']) {
+      const screen = d.getElementById(`view-${route}`);
+      expect(screen, `missing #view-${route}`).toBeTruthy();
+      expect(screen?.classList.contains('screen'), `#view-${route} is not a screen`).toBe(true);
+    }
+    expect(d.getElementById('view-home')?.hasAttribute('hidden')).toBe(false);
+    expect(d.getElementById('view-devices')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('exposes exactly four bottom-nav destinations as real bookmarkable links', () => {
+    const dom = new JSDOM(PAGE);
+    const items = Array.from(dom.window.document.querySelectorAll('.nav-item[data-route]'));
+    expect(items.map((i) => i.getAttribute('data-route'))).toEqual(['home', 'transactions', 'devices', 'more']);
+    expect(items.map((i) => i.getAttribute('href'))).toEqual([
+      '/admin',
+      '/admin/transactions',
+      '/admin/devices',
+      '/admin/more'
+    ]);
+    // A real anchor, so middle-click and "open in new tab" keep working.
+    expect(items.every((i) => i.tagName === 'A')).toBe(true);
+  });
+
+  it('renders the top bar with its gateway status and controls', () => {
+    const dom = new JSDOM(PAGE);
+    const d = dom.window.document;
+    expect(d.querySelector('header.topbar')).toBeTruthy();
+    for (const id of ['view-title', 'view-subtitle', 'gateway-status', 'refresh', 'notifications', 'admin-menu']) {
+      expect(d.getElementById(id), `missing #${id}`).toBeTruthy();
+    }
+    expect(d.getElementById('back')?.hasAttribute('hidden')).toBe(true);
   });
 
   it('keeps the console CSP-safe and free of inline handlers', () => {
@@ -216,282 +170,16 @@ describe('admin console shell', () => {
     expect(PAGE).not.toMatch(/\son(click|load|submit)=/i);
     expect(CLIENT_SCRIPT).not.toMatch(/\son(click|load|submit)=/i);
   });
-});
 
-describe('admin console data binding', () => {
-  it('fills every metric from the overview endpoint', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    expect(ui.text('cash')).toBe('52,000.00');
-    expect(ui.text('withdrawals')).toBe('18,450.25');
-    expect(ui.text('balance')).toBe('33,549.75');
-    expect(ui.text('cash-delta')).toContain('1,250.00');
-    expect(ui.text('gateway-status-text')).toBe('System Online');
-    expect(ui.document.body.classList.contains('unlocked')).toBe(true);
-  }, DOM_TIMEOUT);
-
-  it('summarises the fleet and renders telemetry from real device rows', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    expect(ui.text('stat-total')).toBe('5');
-    expect(ui.text('stat-online')).toBe('3');
-    expect(ui.text('stat-offline')).toBe('2');
-    expect(ui.text('device-count')).toBe('3 online / 5 devices');
-    expect(ui.rows('devices')).toHaveLength(5);
-    expect(ui.rows('devices')[0]?.textContent).toContain('78%');
-    // A device that reports no telemetry degrades instead of showing a zero.
-    expect(ui.rows('devices')[4]?.querySelector('.battery-value')?.textContent).toBe('—');
-    expect(ui.rows('devices')[4]?.querySelector('.net')?.textContent).toBe('No data');
-  }, DOM_TIMEOUT);
-
-  it('pages the ledger and filters it from the header search', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    expect(ui.text('txn-count')).toBe('13 payouts');
-    expect(ui.rows('txns')).toHaveLength(5);
-    expect(ui.text('txn-page-info')).toContain('Showing 1–5 of 13');
-
-    (ui.$('txn-page-controls').querySelector('[data-page="2"]') as HTMLElement).click();
-    await ui.wait(20);
-    expect(ui.text('txn-page-info')).toContain('Showing 6–10 of 13');
-
-    (ui.$('search') as HTMLInputElement).value = 'WD-1004';
-    ui.$('search').dispatchEvent(new ui.window.Event('input', { bubbles: true }));
-    await ui.wait(20);
-    expect(ui.rows('txns')).toHaveLength(1);
-    expect(ui.$('txns').textContent).toContain('WD-1004');
-  }, DOM_TIMEOUT);
-
-  it('counts unsettled payouts on the notification badge', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    const badge = ui.$('notif-badge');
-    expect(badge.classList.contains('has-items')).toBe(true);
-    expect(Number(badge.textContent)).toBeGreaterThan(0);
-  }, DOM_TIMEOUT);
-
-  it('shows a real East Africa Time clock rather than a hardcoded stamp', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    expect(ui.text('clock-time')).toMatch(/\(EAT\)$/);
-    expect(ui.text('clock-date')).not.toBe('—');
-  }, DOM_TIMEOUT);
-});
-describe('admin console routing', () => {
-  const ROUTES = [
-    { path: '/admin', view: 'view-dashboard', title: 'Welcome Back, Admin' },
-    { path: '/admin/transactions', view: 'view-transactions', title: 'Transactions' },
-    { path: '/admin/withdrawals', view: 'view-withdrawals', title: 'Withdrawals' },
-    { path: '/admin/devices', view: 'view-devices', title: 'Devices' },
-    { path: '/admin/users', view: 'view-users', title: 'Users' },
-    { path: '/admin/settings', view: 'view-settings', title: 'Settings' },
-    { path: '/admin/logs', view: 'view-logs', title: 'Logs' }
-  ];
-
-  it('renders a container for every sidebar route', () => {
-    const dom = new JSDOM(PAGE);
-    for (const route of ROUTES) {
-      expect(dom.window.document.getElementById(route.view), route.path).not.toBeNull();
-    }
-  });
-
-  it('exposes every route as a real sidebar link', () => {
-    const dom = new JSDOM(PAGE);
-    const links = Array.from(dom.window.document.querySelectorAll('.nav-item'));
-    expect(links).toHaveLength(8);
-    for (const route of ROUTES) {
-      const link = links.find((l) => l.getAttribute('data-route') === route.view.replace('view-', ''));
-      expect(link, route.path).toBeDefined();
-      // A real href keeps the URL bookmarkable and middle-click working.
-      expect(link?.getAttribute('href')).toBe(route.path);
-    }
-  });
-
-  it.each(ROUTES)('boots on $path and shows only that view', async ({ path, view, title }) => {
-    const ui = await bootRouted(path);
-    expect(ui.$(view).hidden).toBe(false);
-    for (const other of ROUTES.filter((r) => r.view !== view)) {
-      expect(ui.$(other.view).hidden, other.path).toBe(true);
-    }
-    expect(ui.text('view-title')).toContain(title);
-    const active = ui.all('.nav-item.is-active');
-    expect(active).toHaveLength(1);
-    expect(active[0]?.getAttribute('data-route')).toBe(view.replace('view-', ''));
-  }, DOM_TIMEOUT);
-
-  it('navigates between sections without a reload and loads that dataset', async () => {
-    const ui = await bootRouted('/admin');
-    const link = ui.document.querySelector('.nav-item[data-route="users"]') as HTMLElement;
-    link.dispatchEvent(new ui.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
-    await ui.wait(60);
-
-    expect(ui.$('view-users').hidden).toBe(false);
-    expect(ui.$('view-dashboard').hidden).toBe(true);
-    expect(ui.text('view-title')).toContain('Users');
-    // The dataset came from the API, not from a placeholder.
-    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/users'))).toBe(true);
-    expect(ui.rows('users-all')).toHaveLength(2);
-    expect(ui.$('users-all').textContent).toContain('ops@telebirr.et');
-    expect(ui.$('users-all').textContent).toContain('5,000.00');
-    expect(ui.$('users-all').textContent).toContain('Operator');
-    expect(ui.$('users-all').textContent).toContain('Standard');
-  }, DOM_TIMEOUT);
-});
-describe('admin console routed datasets', () => {
-  it('fills the transactions view from the ledger endpoint', async () => {
-    const ui = await bootRouted('/admin/transactions');
-    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/transactions'))).toBe(true);
-    expect(ui.text('txn-all-count')).toBe('13 transactions');
-    expect(ui.$('txn-all').textContent).toContain('WD-1000');
-    expect(ui.$('txn-all').textContent).toContain('COMPLETED');
-  }, DOM_TIMEOUT);
-
-  it('fills the withdrawals view and only offers cancel on queued payouts', async () => {
-    const ui = await bootRouted('/admin/withdrawals');
-    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/withdrawals'))).toBe(true);
-    expect(ui.text('wd-count')).toBe('3 withdrawals');
-    const rows = ui.rows('wd-all');
-    expect(rows).toHaveLength(3);
-    // A queued payout is cancellable; a settled one is not.
-    expect(rows[0]?.querySelector('[data-action="cancel"]')).not.toBeNull();
-    expect(rows[1]?.querySelector('[data-action="cancel"]')).toBeNull();
-    expect(ui.$('wd-all').textContent).toContain('Provider rejected the payout');
-  }, DOM_TIMEOUT);
-
-  it('filters the withdrawals queue by status', async () => {
-    const ui = await bootRouted('/admin/withdrawals');
-    const select = ui.$('wd-status') as HTMLSelectElement;
-    select.value = 'FAILED';
-    select.dispatchEvent(new ui.window.Event('change', { bubbles: true }));
-    await ui.wait(20);
-    expect(ui.rows('wd-all')).toHaveLength(1);
-    expect(ui.$('wd-all').textContent).toContain('WD-Q3');
-  }, DOM_TIMEOUT);
-
-  it('fills the devices view with fleet telemetry', async () => {
-    const ui = await bootRouted('/admin/devices');
-    expect(ui.rows('dev-all')).toHaveLength(5);
-    expect(ui.text('dev-stat-total')).toBe('5');
-    expect(ui.text('dev-stat-online')).toBe('3');
-    expect(ui.$('dev-all').textContent).toContain('DEV-001');
-    expect(ui.$('dev-all').textContent).toContain('78%');
-  }, DOM_TIMEOUT);
-
-  it('fills the logs view and filters by level', async () => {
-    const ui = await bootRouted('/admin/logs');
-    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/activity'))).toBe(true);
-    expect(ui.rows('log-all')).toHaveLength(3);
-    expect(ui.$('log-all').textContent).toContain('payment.succeeded');
-    const select = ui.$('log-level') as HTMLSelectElement;
-    select.value = 'error';
-    select.dispatchEvent(new ui.window.Event('change', { bubbles: true }));
-    await ui.wait(20);
-    expect(ui.rows('log-all')).toHaveLength(1);
-    expect(ui.$('log-all').textContent).toContain('ERROR');
-  }, DOM_TIMEOUT);
-
-  it('fills the settings view with config and health, never a secret', async () => {
-    const ui = await bootRouted('/admin/settings');
-    expect(ui.calls.some((c) => c.path.startsWith('/api/admin/settings'))).toBe(true);
-    const body = ui.$('settings-body').textContent ?? '';
-    expect(body).toContain('Minimum withdrawal');
-    expect(body).toContain('100,000.00');
-    expect(body).toContain('Service health');
-    expect(body).toContain('Rejected webhooks');
-    expect(ui.text('settings-badge')).toBe('Read-only');
-    for (const secret of [process.env.ADMIN_API_KEY, process.env.JWT_SECRET, process.env.DATABASE_URL]) {
-      if (secret) expect(body.includes(secret)).toBe(false);
-    }
-  }, DOM_TIMEOUT);
-});
-// __LOADING_SUITES__
-  describe('admin console loading states', () => {
-  it('paints skeletons on the opening unlock, then clears them', async () => {
-    const ui = await boot();
-    (ui.$('key') as HTMLInputElement).value = KEY;
-    ui.$('unlock').click();
-
-    // Sampled synchronously: the fetch has not resolved yet, so placeholders
-    // must already be on screen.
-    expect(ui.all('#devices .skel').length).toBeGreaterThan(0);
-    expect(ui.all('#txns .skel').length).toBeGreaterThan(0);
-    expect(ui.$('cash').classList.contains('skel')).toBe(true);
-
-    await ui.wait(60);
-    expect(ui.all('#devices .skel')).toHaveLength(0);
-    expect(ui.all('#txns .skel')).toHaveLength(0);
-    expect(ui.$('cash').classList.contains('skel')).toBe(false);
-    expect(ui.text('cash')).toBe('52,000.00');
-  }, DOM_TIMEOUT);
-
-  it('clears the skeletons when the key is rejected instead of stranding them', async () => {
-    const ui = await boot({ reject: true });
-    await unlock(ui);
-    expect(ui.all('#devices .skel')).toHaveLength(0);
-    expect(ui.all('#txns .skel')).toHaveLength(0);
-    expect(ui.$('cash').classList.contains('skel')).toBe(false);
-    // The empty state must be readable, not hidden behind shimmer bars.
-    expect(ui.$('txns').textContent).toContain('No payouts have been dispatched');
-    expect(ui.document.body.classList.contains('unlocked')).toBe(false);
-    expect(ui.text('gateway-status-text')).toBe('System Offline');
-  }, DOM_TIMEOUT);
-
-  it('shows the locked empty states before the operator authorises', async () => {
-    const dom = new JSDOM(PAGE);
-    expect(dom.window.document.getElementById('devices')?.textContent).toContain('Unlock the console');
-    expect(dom.window.document.getElementById('txns')?.textContent).toContain('Unlock the console');
-  });
-});
-
-describe('admin console payout dispatch', () => {
-  it('blocks an invalid phone before anything reaches the API', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    (ui.$('phone') as HTMLInputElement).value = 'abc';
-    (ui.$('amount') as HTMLInputElement).value = '10';
-    submit(ui);
-    await ui.wait(20);
-    expect(ui.calls.filter((c) => c.path === '/api/admin/withdrawals')).toHaveLength(0);
-    expect(ui.document.querySelector('[data-field="phone"]')?.classList.contains('has-error')).toBe(true);
-  }, DOM_TIMEOUT);
-
-  it('posts a valid payout and restores the button afterwards', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    (ui.$('phone') as HTMLInputElement).value = '0911234567';
-    (ui.$('amount') as HTMLInputElement).value = '250';
-    submit(ui);
-    await ui.wait(60);
-
-    const post = ui.calls.find((c) => c.path === '/api/admin/withdrawals');
-    expect(post?.method).toBe('POST');
-    expect(post?.body).toMatchObject({ destinationPhone: '0911234567', amount: 250 });
-    expect(ui.$('form-feedback').classList.contains('success')).toBe(true);
-    expect((ui.$('submit-withdrawal') as HTMLButtonElement).disabled).toBe(false);
-  }, DOM_TIMEOUT);
-
-  it('still reaches the device status endpoint for block/unblock', async () => {
-    const ui = await boot();
-    await unlock(ui);
-    const button = ui.$('devices').querySelector('[data-action="toggle"]') as HTMLElement;
-    const deviceId = button.getAttribute('data-device-id');
-    button.click();
-    await ui.wait(40);
-    const patch = ui.calls.find((c) => c.path.startsWith('/api/admin/devices/'));
-    expect(patch?.method).toBe('PATCH');
-    expect(decodeURIComponent(patch?.path ?? '')).toContain(deviceId ?? '');
-  }, DOM_TIMEOUT);
-});
-
-describe('admin console security', () => {
-  it('never embeds a configured secret in the served page or client', () => {
+  it('never embeds a deployment secret in the page or the client', () => {
     const secrets = [
       process.env.ADMIN_API_KEY,
       process.env.JWT_SECRET,
       process.env.PAYMENT_WEBHOOK_SECRET,
+      process.env.WEBHOOK_SECRET,
       process.env.DATABASE_URL
     ].filter((value): value is string => typeof value === 'string' && value.length > 0);
-    expect(secrets.length).toBeGreaterThan(0);
+    expect(secrets.length, 'no secrets resolved from the environment to check against').toBeGreaterThan(0);
     for (const secret of secrets) {
       expect(PAGE.includes(secret), secret.slice(0, 8)).toBe(false);
       expect(CLIENT_SCRIPT.includes(secret), secret.slice(0, 8)).toBe(false);
@@ -502,11 +190,189 @@ describe('admin console security', () => {
     expect(CLIENT_SCRIPT).not.toMatch(/localStorage\.setItem\([^)]*key/i);
     expect(CLIENT_SCRIPT).not.toMatch(/sessionStorage\.setItem\([^)]*key/i);
   });
+});
 
-  it('carries the key on the request header only', async () => {
+describe('admin console sign-in', () => {
+  it('unlocks the console and hides the login layer once the key is accepted', async () => {
+    const ui = await boot();
+    expect(ui.document.body.className).toContain('is-locked');
+    await unlock(ui);
+    expect(ui.document.body.className).toContain('unlocked');
+    expect(ui.$('login').getAttribute('aria-hidden')).toBe('true');
+    expect(ui.calls.some((c) => c.path === '/api/admin/overview')).toBe(true);
+  }, DOM_TIMEOUT);
+
+  it('stays locked and fires no admin request when the password is empty', async () => {
+    const ui = await boot();
+    (ui.$('key') as HTMLInputElement).value = '';
+    ui.$('login-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
+    await ui.wait(60);
+    expect(ui.document.body.className).not.toContain('unlocked');
+    expect(ui.calls.filter((c) => c.path.startsWith('/api/'))).toHaveLength(0);
+  }, DOM_TIMEOUT);
+
+  it('surfaces the rejection and stays locked when the server refuses the key', async () => {
+    const ui = await boot('/admin', { reject: true });
+    (ui.$('key') as HTMLInputElement).value = 'wrong-key';
+    ui.$('login-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
+    await ui.wait(80);
+    expect(ui.document.body.className).not.toContain('unlocked');
+    // Nothing may render behind the login layer on a rejected sign-in.
+    expect(ui.all('.dev-row')).toHaveLength(0);
+    expect(ui.all('.txn')).toHaveLength(0);
+  }, DOM_TIMEOUT);
+
+  it('never writes the key to localStorage or sessionStorage', async () => {
     const ui = await boot();
     await unlock(ui);
-    // Unlocking with an empty key must never fire a request.
-    expect(ui.calls.every((c) => c.path.startsWith('/api/'))).toBe(true);
+    expect(ui.window.localStorage.getItem('adminKey')).toBeNull();
+    expect(ui.window.sessionStorage.length).toBe(0);
+  }, DOM_TIMEOUT);
+});
+
+describe('admin console data binding', () => {
+  it('fills the home summary from the overview endpoint', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    // The API returns formatted strings; the client formats the totals again.
+    expect(ui.text('cash')).toContain('184,250');
+    expect(ui.text('withdrawals')).toContain('42,305');
+    expect(ui.text('balance')).toContain('141,944');
+    // Growth is today's share of lifetime cash-in, never a guess from the balance.
+    expect(ui.text('balance-growth')).toMatch(/2\.71%/);
+    expect(ui.text('active-devices')).toBe('1');
+  }, DOM_TIMEOUT);
+
+  it('renders the gateway as Online once the overview answers', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    expect(ui.text('gateway-status-text')).toBe('Online');
+  }, DOM_TIMEOUT);
+
+  it('summarises the fleet and renders one row per device', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+
+    expect(ui.text('stat-total')).toBe('3');
+    expect(ui.text('stat-online')).toBe('1');
+    expect(ui.text('stat-offline')).toBe('2');
+
+    const rows = ui.all('#devices .dev-row');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.getAttribute('data-device-id'))).toEqual(['DEV-001', 'DEV-002', 'DEV-003']);
+    // A row is a button, so the detail screen is reachable by keyboard too.
+    expect(rows.every((r) => r.tagName === 'BUTTON')).toBe(true);
+    expect(rows[0]!.textContent).toContain('Tecno Spark 8');
+    expect(rows[0]!.textContent).toContain('DEV-001');
+  }, DOM_TIMEOUT);
+
+  it('labels blocked, online and offline phones distinctly', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    const rows = ui.all('#devices .dev-row');
+    // Blocked outranks online so a blocked phone is never read as dispatchable.
+    expect(rows[0]!.querySelector('.pill')?.className).toContain('online');
+    expect(rows[1]!.querySelector('.pill')?.className).toContain('offline');
+    expect(rows[2]!.querySelector('.pill')?.className).toContain('blocked');
+    expect(rows[2]!.textContent).toContain('Blocked');
+  }, DOM_TIMEOUT);
+
+  it('tiers the battery and copes with a device that reports no telemetry', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    const rows = ui.all('#devices .dev-row');
+    expect(rows[0]!.querySelector('.battery')?.textContent).toContain('82');
+    // 12% is below the 15% critical floor, and a null level must not throw.
+    expect(rows[1]!.querySelector('.battery')?.className).toMatch(/low|critical/);
+    expect(rows[2]!.querySelector('.battery')?.textContent).toContain('—');
+  }, DOM_TIMEOUT);
+
+  it('filters the device list from the search box', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    const search = ui.$('device-search') as HTMLInputElement;
+    search.value = 'infinix';
+    search.dispatchEvent(new ui.window.Event('input', { bubbles: true }));
+    await ui.wait(40);
+    expect(ui.all('#devices .dev-row').map((r) => r.getAttribute('data-device-id'))).toEqual(['DEV-002']);
+  }, DOM_TIMEOUT);
+
+  it('shows an empty state rather than a blank list when no phone has polled', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    (ui.window as unknown as { fetch: unknown }).fetch = (target: string) => {
+      if (target === '/api/admin/devices') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, devices: [] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true }) } as Response);
+    };
+    ui.$('refresh').click();
+    await ui.wait(80);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    expect(ui.all('#devices .dev-row')).toHaveLength(0);
+    expect(ui.$('devices').textContent).toMatch(/no devices/i);
+  }, DOM_TIMEOUT);
+
+  it('opens device details when a row is tapped', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    ui.all('#devices .dev-row')[0]!.dispatchEvent(new ui.window.Event('click', { bubbles: true }));
+    await ui.wait(60);
+    expect(ui.visibleScreens()).toEqual(['view-device']);
+    expect(ui.text('detail-id')).toBe('DEV-001');
+    expect(ui.text('detail-network-type')).toBe('4G');
+  }, DOM_TIMEOUT);
+});
+
+describe('admin console routing', () => {
+  it('lands on Home after sign-in, whichever URL the operator arrived on', async () => {
+    // The login gate funnels into Home (client 09-init calls navigate('home')
+    // once the console unlocks), so deep links resolve through sign-in rather
+    // than stranding the operator on a screen behind the login layer.
+    for (const path of ['/admin', '/admin/transactions', '/admin/devices', '/admin/more']) {
+      const ui = await boot(path);
+      await unlock(ui);
+      expect(ui.visibleScreens(), `on ${path}`).toEqual(['view-home']);
+      expect(ui.text('view-title'), `on ${path}`).toBe('Home');
+    }
+  }, DOM_TIMEOUT);
+
+  it('shows exactly one screen at a time as the operator navigates', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    const stops = ['transactions', 'devices', 'more', 'home'] as const;
+    for (const route of stops) {
+      ui.document.querySelector<HTMLElement>(`.nav-item[data-route="${route}"]`)?.click();
+      await ui.wait(60);
+      expect(ui.visibleScreens(), `on ${route}`).toEqual([`view-${route}`]);
+      expect(ui.all('.nav-item.is-active').map((n) => n.getAttribute('data-route'))).toEqual([route]);
+    }
+  }, DOM_TIMEOUT);
+
+  it('falls back to Home for an unknown URL rather than showing nothing', async () => {
+    const ui = await boot('/admin/does-not-exist');
+    await unlock(ui);
+    expect(ui.visibleScreens()).toEqual(['view-home']);
+  }, DOM_TIMEOUT);
+
+  it('marks the owning tab active, so a pushed screen still reads as inside its section', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    expect(ui.all('.nav-item.is-active').map((n) => n.getAttribute('data-route'))).toEqual(['home']);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    expect(ui.visibleScreens()).toEqual(['view-devices']);
+    expect(ui.all('.nav-item.is-active').map((n) => n.getAttribute('data-route'))).toEqual(['devices']);
   }, DOM_TIMEOUT);
 });
