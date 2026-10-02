@@ -1,13 +1,12 @@
 import { CLIENT_CORE } from './client/01-core.js';
 import { CLIENT_RENDER } from './client/02-render.js';
-import { CLIENT_FLEET } from './client/03-fleet.js';
-import { CLIENT_LEDGER } from './client/04-ledger.js';
-import { CLIENT_FORMS } from './client/05-forms.js';
-import { CLIENT_APP } from './client/06-app.js';
-import { CLIENT_ROUTER } from './client/08-router.js';
-import { CLIENT_VIEWS } from './client/09-views.js';
+import { CLIENT_DETAIL } from './client/03-detail.js';
+import { CLIENT_FORMS } from './client/04-forms.js';
+import { CLIENT_SUBMIT } from './client/05-submit.js';
+import { CLIENT_ROUTER } from './client/06-router.js';
+import { CLIENT_APP } from './client/07-app.js';
 import { CLIENT_REALTIME } from './client/10-realtime.js';
-import { CLIENT_INIT } from './client/07-init.js';
+import { CLIENT_INIT } from './client/09-init.js';
 
 /**
  * The full client bundle.
@@ -17,6 +16,6 @@ import { CLIENT_INIT } from './client/07-init.js';
  * Function declarations hoist, so ordering here is for readability only.
  */
 export const CLIENT_SCRIPT = [
-  CLIENT_CORE, CLIENT_RENDER, CLIENT_FLEET, CLIENT_LEDGER, CLIENT_FORMS,
-  CLIENT_ROUTER, CLIENT_VIEWS, CLIENT_REALTIME, CLIENT_APP, CLIENT_INIT
+  CLIENT_CORE, CLIENT_RENDER, CLIENT_DETAIL, CLIENT_FORMS, CLIENT_SUBMIT,
+  CLIENT_ROUTER, CLIENT_APP, CLIENT_REALTIME, CLIENT_INIT
 ].join('\n');

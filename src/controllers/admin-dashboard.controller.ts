@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { env } from '../config/env.js';
 import { DashboardLayout } from '../admin-ui/dashboard-layout.js';
 import { CLIENT_SCRIPT } from '../admin-ui/client-script.js';
 
@@ -14,7 +15,7 @@ import { CLIENT_SCRIPT } from '../admin-ui/client-script.js';
  * an unlocked session is never cached by an intermediary.
  */
 export async function dashboard(_request: FastifyRequest, reply: FastifyReply) {
-  return reply.header('cache-control', 'no-store').type('text/html; charset=utf-8').send(DashboardLayout());
+  return reply.header('cache-control', 'no-store').type('text/html; charset=utf-8').send(DashboardLayout(env.ADMIN_USERNAME));
 }
 
 export async function dashboardScript(_request: FastifyRequest, reply: FastifyReply) {

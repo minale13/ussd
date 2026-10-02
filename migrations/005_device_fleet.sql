@@ -8,6 +8,13 @@ ALTER TABLE mobile_devices ADD COLUMN IF NOT EXISTS battery_level INTEGER;
 ALTER TABLE mobile_devices ADD COLUMN IF NOT EXISTS network_type TEXT;
 ALTER TABLE mobile_devices ADD COLUMN IF NOT EXISTS app_version TEXT;
 
+-- The polling connection's address, recorded server-side rather than reported
+-- by the handset. The device detail screen in the web app shows it so an
+-- operator can tell a phone on wifi apart from one on mobile data. There is no
+-- per-device secret involved: the server already sees the peer address of every
+-- authenticated poll.
+ALTER TABLE mobile_devices ADD COLUMN IF NOT EXISTS last_ip TEXT;
+
 ALTER TABLE mobile_devices DROP CONSTRAINT IF EXISTS mobile_devices_channel_check;
 ALTER TABLE mobile_devices ADD CONSTRAINT mobile_devices_channel_check
   CHECK (channel IS NULL OR channel IN ('TELEBIRR', 'CBE'));

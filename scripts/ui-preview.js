@@ -15,19 +15,42 @@
  *  2. An SSE live-reload client; the server watches dashboard.html and
  *     tailwind.css and pushes `reload` on change.
  *
+ * The admin console the API serves at /admin is mounted on the same port, using
+ * the shared plumbing in scripts/admin-console.preview.js: the real page and the
+ * real client from the built controller, a mocked admin API over an in-memory
+ * fleet, and the ADMIN_USERNAME / ADMIN_API_KEY from .env enforced on every
+ * /api/admin/ call. scripts/admin-ui-preview.js serves the identical console, so
+ * the login flow behaves the same whichever preview holds port 3000.
+ *
  * Styling: when the local Tailwind CLI works, the server runs it in --watch
  * mode (tailwind.input.css → assets/tailwind.css, production parity). If the
  * CLI is unavailable it falls back to the vendored Play-CDN JIT (tw-dl.js)
  * so styling is still instant with zero build.
  *
- * Endpoints: /  /tailwind.css  /tw-dl.js  /__livereload (SSE)
- *            /__status (JSON)  /__shutdown (stop this server)
+ * Endpoints: /  /app  /dashboard.html  /tailwind.css  /tw-dl.js  /__livereload (SSE)
+ *            /admin  /admin/app.js  /health  /api/admin/*  (mocked console)
+ *            /__status (JSON)  /__reset  /__shutdown (stop this server)
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import * as fleet from "./admin-console.preview.js";
+import {
+  ADMIN_USERNAME,
+  BUILD,
+  CONTROLLER_DIR,
+  WATCHED,
+  getConsole,
+  handleConsole,
+  invalidateConsole,
+  reset as resetConsole,
+} from "./admin-console.preview.js";
+
+// Read through the namespace so a /__reset is reflected without re-importing.
+const fleetDevices = () => fleet.devices.length;
+const fleetTransactions = () => fleet.transactions.length;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ASSETS = path.join(ROOT, "android", "app", "src", "main", "assets");
@@ -283,10 +306,18 @@ function serveCss(res) {
   res.end("/* preview: tailwind.css not built yet — CDN JIT handles styling */\n");
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
+
+  // The admin console the API serves at /admin, with the same real page, real
+  // client and mocked admin API (and the same configured credentials) that
+  // scripts/admin-ui-preview.js serves. Shared in admin-console.preview.js so
+  // the two previews can never drift apart.
+  if (await handleConsole(req, res, url)) return;
+
   switch (url.pathname) {
     case "/":
+    case "/app":
     case "/dashboard.html":
       return serveDashboard(res);
     case "/tailwind.css":
@@ -309,13 +340,33 @@ const server = http.createServer((req, res) => {
       req.on("close", () => { clearInterval(heartbeat); clients.delete(res); });
       return;
     }
-    case "/__status":
+    case "/__status": {
+      // The console keys are reported too: scripts/preview-ctl.cjs and
+      // scripts/check-preview.cjs use `page` to recognise an admin console on
+      // this port, whichever preview is serving it.
+      let page = "loading";
+      try {
+        await getConsole();
+        page = "ready";
+      } catch { /* the status still reports the build below */ }
       res.writeHead(200, { "Content-Type": MIME[".json"] });
       return res.end(JSON.stringify({
+        page,
+        build: fs.existsSync(BUILD) ? "present" : "missing",
+        devices: fleetDevices(),
+        transactions: fleetTransactions(),
+        admin_username: ADMIN_USERNAME,
         mode,
         css: fs.existsSync(CSS_FILE) ? "present" : "missing",
         url: "http://localhost:" + port,
       }));
+    }
+    case "/__reset":
+      // Restores the console's in-memory seed fleet, so a review session can be
+      // put back to a known state without restarting.
+      resetConsole();
+      res.writeHead(200, { "Content-Type": MIME[".json"] });
+      return res.end('{"ok":true}');
     case "/__shutdown":
       res.writeHead(200, { "Content-Type": MIME[".json"] });
       res.end('{"ok":true}');
@@ -330,14 +381,22 @@ const server = http.createServer((req, res) => {
 // Watcher: reload whenever the dashboard or the generated CSS changes.
 // ---------------------------------------------------------------------------
 let reloadTimer = null;
-function watchDir(dir, interesting) {
+/**
+ * @param {string[]} interesting the file names that should trigger a reload
+ * @param {() => void} [onChange] run before reloading, e.g. to drop a cached
+ *        copy of the admin console so the next request reads the rebuilt source
+ */
+function watchDir(dir, interesting, onChange) {
   try {
     fs.watch(dir, (event, file) => {
       if (!file) return;
       const name = file.toString();
       if (!interesting.includes(name)) return;
       clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(() => broadcastReload(name), 80);
+      reloadTimer = setTimeout(() => {
+        if (onChange) onChange();
+        broadcastReload(name);
+      }, 80);
     });
   } catch (err) {
     console.log("[preview] cannot watch", dir, ":", err.message);
@@ -360,12 +419,21 @@ function listen(candidate) {
       process.exit(1);
     }
   });
-  server.listen(candidate, "127.0.0.1", () => {
+  server.listen(candidate, "127.0.0.1", async () => {
     port = candidate;
     const url = `http://localhost:${port}`;
+    // Warm the console so the first /admin request is not a cold import. A
+    // failure here is not fatal: the dashboard still serves, and /admin reports
+    // the error through its own response.
+    try {
+      await getConsole();
+    } catch (err) {
+      console.log("[preview] admin console unavailable:", err.message);
+    }
     console.log("─".repeat(56));
     console.log(`  UI preview   →  ${url}`);
     console.log(`  styling      →  ${mode === "built" ? "tailwind --watch" : "CDN JIT (no build)"}`);
+    console.log(`  admin console→  ${url}/admin   (sign in as "${ADMIN_USERNAME}")`);
     console.log("  live-reload  →  save dashboard.html to refresh");
     console.log(`  stop         →  ${url}/__shutdown`);
     console.log("─".repeat(56));
@@ -403,4 +471,7 @@ process.on("SIGTERM", shutdown);
 initStyles();
 watchDir(ASSETS, ["dashboard.html", "tailwind.css"]);
 watchDir(ROOT, ["tailwind.config.cjs", "tailwind.input.css", "tailwind.css"]);
+// The console is generated from the built controller, so dropping the cached
+// copy is what makes a `npm run build` visible on the next request.
+watchDir(CONTROLLER_DIR, [WATCHED], invalidateConsole);
 listen(port);

@@ -35,7 +35,72 @@ The load test only calls the local API and the mock provider; it never sends rea
 
 The development authentication boundary currently accepts `x-user-id` so the payment flow can be exercised without inventing a token issuer. Replace it with the application's real JWT/session verifier before production deployment. Requests must also include `Idempotency-Key`. A transactional outbox retries publishing committed withdrawals to Redis after API or Redis interruptions.
 
-## Android gateway and administration
+## Deploy the web admin
+
+Every setting is read from `process.env` through `src/config/env.ts`, so a hosted
+platform only needs the same variable names that `.env.example` already uses.
+Nothing is read from a config file at runtime, and no secret is baked into the
+image.
+
+### Render (recommended)
+
+`render.yaml` is a Render blueprint that creates everything the service needs:
+a Postgres 16 database, a Redis instance, the HTTP service for `/admin` and the
+`/api` routes, and a **separate worker service** that runs the BullMQ consumer.
+Push the repository to GitHub, then in Render choose **New → Blueprint** and point
+it at the repo. Render reads the file, provisions the datastores, wires
+`DATABASE_URL` and `REDIS_URL` into both services, and runs `npm run db:migrate`
+as a pre-deploy command. Fill in the `sync: false` secrets when prompted.
+
+| Service | Command | Role |
+| --- | --- | --- |
+| `withdrawal-api` | `npm run start` | console + HTTP API, health check `/health` |
+| `withdrawal-worker` | `npm run start:worker` | the only process that executes payouts |
+
+Render is the right target rather than a serverless platform because the service
+is not purely request/response: it holds a PostgreSQL pool, a BullMQ worker
+draining Redis, a transactional-outbox publisher on a timer, and an SSE stream
+held open per console session. Serverless platforms freeze between invocations
+and cap response duration, which silently drops queued payouts and kills the
+live stream.
+
+### Vercel (console + API only)
+
+`vercel.json` and `api/index.js` deploy the admin console and the HTTP API as a
+single serverless function. Two caveats are deliberate:
+
+- Set `OUTBOX_PUBLISHER_ENABLED=false`. The outbox publisher is a `setInterval`
+  that would otherwise be respawned on every cold start. Payout execution still
+  requires the long-lived worker from the Render blueprint.
+- The console's SSE stream (`/api/admin/stream`) is subject to serverless
+  response-duration limits, so live updates may drop. Deploy to Render for the
+  full console.
+
+### Environment variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `ADMIN_USERNAME` | yes | console sign-in name |
+| `ADMIN_PASSWORD` | yes | console sign-in password (alias of `ADMIN_API_KEY`) |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `WEBHOOK_SECRET` | yes | provider HMAC key (alias of `PAYMENT_WEBHOOK_SECRET`) |
+| `JWT_SECRET` | yes | ≥ 32 characters |
+| `ADMIN_WITHDRAWAL_USER_ID` | yes | UUID the phones poll as |
+| `REDIS_URL` | yes | BullMQ connection string |
+| `TRUST_PROXY` | no | `true` behind Render/Vercel/Fly so `X-Forwarded-For` is honoured |
+| `OUTBOX_PUBLISHER_ENABLED` | no | `false` on serverless; defaults to `true` |
+| `HOST` / `PORT` | no | default `0.0.0.0` / `3000` |
+
+`ADMIN_PASSWORD` and `WEBHOOK_SECRET` are folded onto the canonical
+`ADMIN_API_KEY` / `PAYMENT_WEBHOOK_SECRET` inside `parseEnv`, so both spellings
+work. The canonical name always wins if both are set, which keeps existing
+`.env` files and CI secret stores behaving exactly as before.
+
+Leave `TRUST_PROXY` off when the service is exposed directly — with it on, a
+client can spoof its own address through `X-Forwarded-For`, which feeds both the
+rate limiter and the withdrawal's recorded `lastIp`.
+
+
 
 ### Channel onboarding
 
@@ -111,6 +176,68 @@ Payout outcomes are therefore reported exactly once, by
 server's `withdrawals` table is the single source of truth the console reads, so
 no per-phone ledger is kept on the device.
 
+### Build the Android APK
+
+The backend URL is a build-time setting, not a runtime one, so the same project
+produces a debug APK pointed at a laptop and a release APK pointed at the
+deployed web admin without editing a line of source.
+`android/app/build.gradle.kts` resolves each value from a Gradle property first,
+then the matching environment variable, then a built-in default.
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `API_BASE_URL` | `http://10.0.2.2:3000/` | backend root; a trailing `/` is added if you omit it |
+| `GATEWAY_USER_ID` | placeholder | must equal `ADMIN_WITHDRAWAL_USER_ID` on the server |
+| `WEBHOOK_SECRET` | placeholder | must equal `PAYMENT_WEBHOOK_SECRET` on the server |
+| `USSD_PREFIX` | `*806` | Telebirr USSD menu prefix |
+| `USSD_PIN` | placeholder | fallback PIN when none is saved on the phone |
+
+```text
+npm run apk:debug
+npm run apk:release -- --url https://withdrawal.example.com
+```
+
+`scripts/build-apk.mjs` also generates the Gradle wrapper when it is missing (the
+wrapper is not committed; CI generates it the same way), so no separate Gradle
+install is needed beyond a JDK 17 and the Android SDK. It expects `ANDROID_HOME`
+or an `sdk.dir` entry in `android/local.properties`.
+
+`npm run apk:release` fails fast when `GATEWAY_USER_ID`, `WEBHOOK_SECRET` or
+`USSD_PIN` is still a `replace-with-…` placeholder — such a build would sign
+webhooks with a published key and poll as nobody. The Gradle script enforces the
+same rule independently, so `--release` cannot be bypassed. Values can be set
+once in `android/local.properties` (git-ignored) instead of per build:
+
+```properties
+API_BASE_URL=https://withdrawal.example.com/
+GATEWAY_USER_ID=11111111-1111-4111-8111-111111111111
+WEBHOOK_SECRET=<matches PAYMENT_WEBHOOK_SECRET>
+```
+
+The finished APK is copied to `dist/apk/`:
+
+```text
+adb install -r dist/apk/app-release.apk
+```
+
+Debug and release are signed with the same committed `android/app/keystore.jks`,
+so a new build replaces an installed copy in place without uninstalling — and
+without losing the saved channel login.
+
+**Cleartext HTTP.** Android blocks plain HTTP from API 28 and this app targets
+35, so a release APK only talks to an HTTPS backend. That is why
+`src/main/res/xml/network_security_config.xml` sets
+`cleartextTrafficPermitted="false"`, while the debug source set overrides it to
+`true` so a debug build can reach `http://10.0.2.2:3000/` or a LAN address. A
+release build pointed at a plain-HTTP host fails with *"CLEARTEXT communication
+not permitted"*; either serve the deployment over HTTPS or add that one host to
+the main config rather than re-enabling cleartext globally.
+
+> `WEBHOOK_SECRET` and `USSD_PIN` are compiled into `BuildConfig`, so they are
+> recoverable by anyone who unpacks the APK. Scope the webhook key to what the
+> phone actually needs and rotate it if an APK leaves a trusted network.
+
+
 ### Device polling and administration
 
 Run every SQL file in `migrations/` with `npm run db:migrate`, then replace `ADMIN_API_KEY` in `.env` with a strong secret. The Android gateway sends `x-device-id` (the phone's stable `ANDROID_ID`) and `x-phone-model` while polling `GET /api/withdrawals/pending`; blocked devices receive `403` and cannot claim withdrawals. Device records are created on first poll.
@@ -119,7 +246,7 @@ Each poll also carries fleet telemetry — `x-device-channel`, `x-device-sim`, `
 
 Manual payouts can be pinned to a single phone. `POST /api/admin/withdrawals` accepts an optional `targetDeviceId` that is either a registered device id or `"ANY"`; an omitted, blank or `"ANY"` value means auto-assignment and is stored as `NULL` in `withdrawals.target_device_id` (migration `004_target_device.sql`). `GET /api/withdrawals/pending` only returns payouts whose target is `NULL`, `"ANY"` or the polling device, so the Android app keeps sending its own device id to receive targeted work. Targeting an unregistered device returns `404`, targeting a blocked device returns `409`, and a targeted payout stays `PENDING` until that exact device polls.
 
-The admin dashboard is available at `/admin` and is the **only** operations surface. Enter the admin key in the page to unlock the console. It has three parts:
+The admin dashboard is available at `/admin` and is the **only** operations surface. Sign in with the administrator username and password from `.env` (`ADMIN_USERNAME` and `ADMIN_API_KEY`); the username is prefilled on the login form and the password is sent as the `x-admin-key` header alongside it as `x-admin-username`, so neither is ever stored on the device. It has three parts:
 
 - **Device fleet** — every registered phone with its online/offline/blocked state, device id and model, active channel and SIM, a battery bar (tiered into `low` under 35% and `critical` under 15% so a flat phone is never dispatched to), and a network badge. Blocked outranks online so a blocked phone cannot be misread as ready.
 - **Payout dispatcher** — the direct withdrawal form, including the `TARGET DEVICE` dropdown. It is populated from `GET /api/admin/devices` with each device's model, id and active/blocked status plus an "Any Available Device" auto-assign option; blocked devices stay listed but cannot be selected. Once a device is pinned the note under the control names the exact id that the payout will be routed to.
@@ -131,7 +258,9 @@ The protected admin API also exposes `GET /api/admin/overview`, `GET /api/admin/
 
 `npm run admin:preview` goes one step further and exercises the console over real HTTP against a running server with a stubbed database pool: it boots the built app, requests `/admin` and `/admin/app.js`, checks the fleet/history/dispatch panels are present and that no mobile markup leaked in, confirms the admin API rejects a bad key and answers an authorised one, and verifies the transaction history joins its target device while leaving an auto-assigned payout unassigned.
 
-To inspect the console in a browser, `npm run admin:ui` serves it on `http://localhost:3000/admin` (falling back to the next free port) and opens it. `scripts/admin-ui-preview.js` serves the real page and the real client from the built controller, with only the admin API mocked over an in-memory fleet — so Block/Unblock, the target-device dropdown and creating a payout all really work, and a payout you create shows up in Transaction history. Any admin key unlocks it. Query params for reviewing the awkward states: `?devices=0` / `?txns=0` for the empty states, and `?reject=1` to make a dispatch fail so the error toast can be seen. `npm run admin:ui -- --open` reopens the tab without restarting, `/__reset` restores the seed data, and `/__shutdown` stops the server. The page is generated from source, so after editing `admin-dashboard.controller.ts` run `npm run build` to pick the change up.
+To inspect the console in a browser, `npm run admin:ui` serves it on `http://localhost:3000/admin` (falling back to the next free port) and opens it. `scripts/admin-ui-preview.js` serves the real page and the real client from the built controller, with only the admin API mocked over an in-memory fleet — so Block/Unblock, the target-device dropdown and creating a payout all really work, and a payout you create shows up in Transaction history. It checks the same `ADMIN_USERNAME` / `ADMIN_API_KEY` pair as the real API, so the credentials in `.env` are the ones that unlock it. Query params for reviewing the awkward states: `?devices=0` / `?txns=0` for the empty states, and `?reject=1` to make a dispatch fail so the error toast can be seen. `npm run admin:ui -- --open` reopens the tab without restarting, `/__reset` restores the seed data, and `/__shutdown` stops the server. The page is generated from source, so after editing `admin-dashboard.controller.ts` run `npm run build` to pick the change up.
+
+`npm run ui:dev` (`node scripts/ui-preview.js`) mounts the same console at `/admin` on port 3000 alongside the Android dashboard preview, using the shared harness in `scripts/admin-console.preview.js`, so the sign-in flow can be checked from either preview without a database.
 
 When PostgreSQL and Redis are unavailable locally, keep `LOCAL_INFRA_FALLBACK=true` to start the API in degraded mode. The API will report `degraded` from `/health` and will not start the outbox publisher; withdrawal persistence and queue processing remain unavailable until infrastructure is running. Set `LOCAL_INFRA_FALLBACK=false` when using real local infrastructure, and never enable it in production.
 

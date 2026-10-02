@@ -6,12 +6,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
+    "start:worker": "node dist/src/workers/withdrawal.worker.js",
     "worker": "tsx src/workers/withdrawal.worker.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:migrate:prod": "node dist/scripts/migrate.js",
     "test:load": "tsx scripts/load-test.ts",
+    "apk:debug": "node scripts/build-apk.mjs",
+    "apk:release": "node scripts/build-apk.mjs --release",
     "ui:dev": "node scripts/ui-preview.js",
     "admin:ui": "npm run build && node scripts/admin-preview-start.mjs",
     "admin:preview": "npm run build && node scripts/admin-preview.mjs"

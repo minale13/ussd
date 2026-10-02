@@ -90,6 +90,10 @@ export async function pending(request: FastifyRequest, reply: FastifyReply) {
     // The column is CHECKed to 0-100; clamp rather than reject the poll.
     batteryLevel: batteryLevel === undefined ? null : Math.min(100, Math.max(0, batteryLevel)),
     networkType: header(request, 'x-device-network'),
+    // Taken from the request rather than a header: a handset cannot claim to be
+    // polling from an address it is not actually using. Fastify resolves this
+    // through the proxy-aware `trustProxy` setting when one is configured.
+    lastIp: typeof request.ip === 'string' ? request.ip.slice(0, 64) : null,
   };
   try {
     return reply.send({

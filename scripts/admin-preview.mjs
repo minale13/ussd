@@ -16,6 +16,7 @@ process.env.DATABASE_URL ??= 'postgres://preview:preview@localhost:5432/preview'
 process.env.REDIS_URL ??= 'redis://localhost:6379';
 process.env.JWT_SECRET ??= 'preview-jwt-secret-that-is-at-least-32-characters';
 process.env.ADMIN_API_KEY ??= 'preview-admin-key-that-is-long-enough';
+process.env.ADMIN_USERNAME ??= 'admin';
 process.env.ADMIN_WITHDRAWAL_USER_ID ??= '11111111-1111-4111-8111-111111111111';
 process.env.PAYMENT_WEBHOOK_SECRET ??= 'preview-webhook-secret';
 
@@ -62,7 +63,9 @@ const port = 3177 + Math.floor(Math.random() * 400);
 await app.listen({ port, host: '127.0.0.1' });
 const base = `http://127.0.0.1:${port}`;
 const key = process.env.ADMIN_API_KEY;
-const auth = { 'x-admin-key': key, 'content-type': 'application/json' };
+const username = process.env.ADMIN_USERNAME;
+// Both halves of the sign-in travel as headers, exactly as the console sends them.
+const auth = { 'x-admin-username': username, 'x-admin-key': key, 'content-type': 'application/json' };
 
 const checks = [];
 const check = (name, condition, detail = '') => {
@@ -76,7 +79,9 @@ try {
   const page = await (await fetch(`${base}/admin`)).text();
   check('/admin serves the console', page.includes('id="devices"'));
   check('device fleet panel present', page.includes('Device Fleet'));
-  check('transaction history panel present', page.includes('Transaction history'));
+  // The mobile console titles its ledger by the active filter tab; the default
+  // "All" tab is what the operator lands on.
+  check('transaction history panel present', page.includes('id="view-transactions"') && page.includes('All transactions'));
   check('target device dropdown present', page.includes('id="target-dropdown"'));
   check('no mobile app markup leaked in', !page.includes('listening-orb') && !page.includes('id="onboarding"'));
 
@@ -86,6 +91,9 @@ try {
 
   const unauthorized = await fetch(`${base}/api/admin/devices`, { headers: { 'x-admin-key': 'wrong-key' } });
   check('admin API rejects a bad key', unauthorized.status === 401, `status ${unauthorized.status}`);
+
+  const wrongUser = await fetch(`${base}/api/admin/devices`, { headers: { 'x-admin-username': 'not-the-admin', 'x-admin-key': key } });
+  check('admin API rejects a bad username', wrongUser.status === 401, `status ${wrongUser.status}`);
 
   const devices = await (await fetch(`${base}/api/admin/devices`, { headers: auth })).json();
   check('GET /api/admin/devices returns the fleet', devices.devices?.length === 3, `${devices.devices?.length} devices`);

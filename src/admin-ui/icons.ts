@@ -45,7 +45,45 @@ const PATHS = {
   block: '<circle cx="12" cy="12" r="9"/><path d="M5.7 5.7l12.6 12.6"/>',
   inbox: '<path d="M3.5 13.5h4l1.5 3h6l1.5-3h4"/><path d="M5.6 5.2 3.5 13.5v4a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4l-2.1-8.3A2 2 0 0 0 16.5 4h-9a2 2 0 0 0-1.9 1.2Z"/>',
   trash: '<path d="M4.5 6.5h15"/><path d="M9.5 6.5V4.8a1.3 1.3 0 0 1 1.3-1.3h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7"/><path d="M6.5 6.5 7.4 19a1.6 1.6 0 0 0 1.6 1.5h6a1.6 1.6 0 0 0 1.6-1.5l.9-12.5"/>',
-  sparkle: '<path d="M12 3.5 13.8 9l5.5 1.8-5.5 1.8L12 18l-1.8-5.4L4.7 10.8 10.2 9Z"/>'
+  sparkle: '<path d="M12 3.5 13.8 9l5.5 1.8-5.5 1.8L12 18l-1.8-5.4L4.7 10.8 10.2 9Z"/>',
+
+  /* ---- Mobile app shell: bottom navigation, headers and screen chrome ---- */
+
+  /** Bottom-nav "Home". */
+  home: '<path d="M3.5 10.6 12 3.6l8.5 7"/><path d="M5.8 12.4v7.2a1 1 0 0 0 1 1h3.4v-5.1h3.6v5.1h3.4a1 1 0 0 0 1-1v-7.2"/>',
+  /** Bottom-nav "More": three stacked dots. */
+  more: '<circle cx="12" cy="5.2" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.8" r="1.6"/>',
+  /** Back arrow for a pushed sub-screen. */
+  arrowLeft: '<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>',
+  /** "Today" summary tile. */
+  calendarCheck: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8.5 3.5V6.5M15.5 3.5V6.5"/><path d="M9 14.5l2 2 4-4"/>',
+  /** Cash-in: arrow into a wallet. */
+  cashIn: '<path d="M3.5 8.5h17v11h-17z"/><path d="M3.5 8.5 5.5 4h13l2 4.5"/><path d="M12 14v-4"/><path d="M9.8 12.2 12 10l2.2 2.2"/>',
+  /** Withdrawals: arrow out of a wallet. */
+  cashOut: '<path d="M3.5 8.5h17v11h-17z"/><path d="M3.5 8.5 5.5 4h13l2 4.5"/><path d="M12 12v4"/><path d="M9.8 13.8 12 16l2.2-2.2"/>',
+  /** SIM card glyph for the device detail rows. */
+  sim: '<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h4.5"/><rect x="8.8" y="11" width="6.4" height="5" rx="1.4"/>',
+  /** Signal bars: network generation. */
+  wifi: '<path d="M3.5 9.2a13 13 0 0 1 17 0"/><path d="M7 12.7a8.4 8.4 0 0 1 10 0"/><path d="M10.4 16.2a3.9 3.9 0 0 1 3.2 0"/><path d="M12 19.6h.01"/>',
+  /** Device identity / handset id. */
+  fingerprint: '<path d="M12 3.5a8.5 8.5 0 0 0-8.5 8.5v1.4"/><path d="M20.5 12a8.5 8.5 0 0 0-4.6-7.7"/><path d="M8 20.5a12 12 0 0 0 1.5-6.5 2.5 2.5 0 0 1 5 0c0 1.6-.2 3.2-.7 4.7"/><path d="M15.9 20.3c.8-1.8 1.2-3.7 1.3-5.6"/><path d="M12 12v3.4"/>',
+  /** Power / restart. */
+  power: '<path d="M12 3.5v8"/><path d="M17.7 6.6a8 8 0 1 1-11.4 0"/>',
+  /** Generic toggle switch knob. */
+  toggle: '<rect x="2.5" y="7" width="19" height="10" rx="5"/>',
+  /** Log out. */
+  logout: '<path d="M14.5 4.5H6.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5h8"/><path d="M11 12h9"/><path d="M17 8.5 20.5 12 17 15.5"/>',
+  /** Profile / account. */
+  user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/>',
+  /** About / information. */
+  about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/>',
+  /** Notifications tab state. */
+  bellMuted: '<path d="M18 8.5a6 6 0 0 0-8.4-5.5"/><path d="M6.2 6.6A6 6 0 0 0 6 8.5c0 5-2 6.5-2 6.5h13"/><path d="M13.7 19a2 2 0 0 1-3.4 0"/><path d="M4 4l16 16"/>',
+  /** Empty-state / generic no data. */
+  empty: '<rect x="3.5" y="5.5" width="17" height="14" rx="3"/><path d="M3.5 10.5h17"/><path d="M9 15h6"/>',
+  /** Filter tab marker. */
+  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>'
 } as const;
 
 export type IconName = keyof typeof PATHS;

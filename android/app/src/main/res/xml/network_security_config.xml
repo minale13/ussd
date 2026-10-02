@@ -1,0 +1,16 @@
+<!--
+  Release network policy: HTTPS only.
+
+  Android blocks cleartext HTTP by default from API 28, and this app targets 35,
+  so an http:// API_BASE_URL would fail at runtime with a confusing
+  "CLEARTEXT communication not permitted" error rather than a clear one. The
+  debug source set overrides this file with a permissive policy; the release
+  build keeps HTTPS mandatory, which is what a deployed backend should serve.
+
+  To point a release build at a plain-HTTP host (a LAN box with no
+  certificate), add an explicit domain below rather than re-enabling cleartext
+  globally -- see "Android gateway and administration" in the README.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

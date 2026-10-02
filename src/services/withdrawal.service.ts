@@ -165,6 +165,12 @@ export interface DeviceTelemetry {
   carrier?: string | null;
   batteryLevel?: number | null;
   networkType?: string | null;
+  /**
+   * The polling connection's address. Recorded server-side from the request,
+   * not trusted from a header, so a device cannot claim to be on a network it
+   * is not. The web admin device detail screen shows it.
+   */
+  lastIp?: string | null;
 }
 
 export async function claimPendingWithdrawals(
@@ -181,8 +187,8 @@ export async function claimPendingWithdrawals(
     // and records what it is currently able to do.
     const device = await client.query(
       `INSERT INTO mobile_devices
-         (device_id, phone_model, sim_slot, channel, carrier, battery_level, network_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (device_id, phone_model, sim_slot, channel, carrier, battery_level, network_type, last_ip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (device_id) DO UPDATE SET
          phone_model = EXCLUDED.phone_model,
          sim_slot = EXCLUDED.sim_slot,
@@ -190,6 +196,7 @@ export async function claimPendingWithdrawals(
          carrier = EXCLUDED.carrier,
          battery_level = EXCLUDED.battery_level,
          network_type = EXCLUDED.network_type,
+         last_ip = EXCLUDED.last_ip,
          last_seen_at = now(),
          updated_at = now()
        RETURNING active_status`,
@@ -200,7 +207,8 @@ export async function claimPendingWithdrawals(
         telemetry.channel ?? null,
         telemetry.carrier ?? null,
         telemetry.batteryLevel ?? null,
-        telemetry.networkType ?? null
+        telemetry.networkType ?? null,
+        telemetry.lastIp ?? null
       ]
     );
     if (!device.rows[0].active_status) {

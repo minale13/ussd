@@ -13,7 +13,12 @@ import { env } from './config/env.js';
 import { authenticateAdmin } from './middleware/admin-auth.js';
 
 export function buildApp() {
-  const app = Fastify({ logger: { redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.destination'] } });
+  const app = Fastify({
+    // Only honour X-Forwarded-* when a platform proxy is actually in front of
+    // the service; see TRUST_PROXY in config/env.ts.
+    trustProxy: env.TRUST_PROXY,
+    logger: { redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.destination'] }
+  });
   app.register(helmet);
   app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
   app.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
@@ -23,10 +28,11 @@ export function buildApp() {
     redis: env.LOCAL_INFRA_FALLBACK && env.NODE_ENV === 'development' ? 'disabled' : 'required'
   }));
   app.get('/admin', adminDashboard);
-  // Every console section is a real, bookmarkable URL. They all serve the same
-  // single-page shell; the client router picks the view from the pathname, so a
-  // hard refresh or a shared link lands on the right page.
-  for (const section of ['transactions', 'withdrawals', 'devices', 'users', 'settings', 'logs']) {
+  // Every screen of the app is a real, bookmarkable URL. They all serve the same
+  // single-page shell; the client router picks the screen from the pathname, so a
+  // hard refresh or a shared link lands in the right place. The four bottom-nav
+  // destinations plus the screens reached by drilling in.
+  for (const section of ['transactions', 'devices', 'more', 'send', 'device', 'notifications', 'profile']) {
     app.get(`/admin/${section}`, adminDashboard);
   }
   app.get('/admin/app.js', adminDashboardScript);
@@ -39,6 +45,7 @@ export function buildApp() {
   app.get('/api/admin/activity', { preHandler: authenticateAdmin }, admin.activity);
   app.get('/api/admin/settings', { preHandler: authenticateAdmin }, admin.settings);
   app.patch('/api/admin/devices/:deviceId', { preHandler: authenticateAdmin }, admin.updateDevice);
+  app.post('/api/admin/devices/:deviceId/restart', { preHandler: authenticateAdmin }, admin.restartDevice);
   app.post('/api/admin/withdrawals', { preHandler: authenticateAdmin }, admin.manualWithdrawal);
   app.post('/api/withdrawals', { preHandler: authenticate }, withdrawal.create);
   app.get('/api/withdrawals/pending', { preHandler: authenticate }, withdrawal.pending);

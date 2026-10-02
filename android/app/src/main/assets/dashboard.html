@@ -213,6 +213,70 @@
   #onboarding { display: none; }
   #onboarding.onboarding-open { display: flex; }
 
+  /* ---------------------------------------------------------------------
+     Phone frame.
+
+     On a handset the WebView *is* the phone, so this wrapper is a no-op and the
+     layout is byte-identical to before. It only earns its keep in a desktop
+     browser, where the preview would otherwise stretch a 420px app across a
+     27" monitor.
+
+     The critical part is `contain`. Every overlay in this document
+     (#settings-panel, #settings-backdrop, #onboarding, #active-glow) is
+     position:fixed, which resolves against the viewport - so constraining the
+     content column alone would still leave the Settings sheet spanning the
+     whole monitor. `transform` establishes a containing block for fixed
+     descendants, so the frame clips them to the phone width. Applied only
+     above the breakpoint to avoid touching real-device behaviour.
+     --------------------------------------------------------------------- */
+  #app-frame {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+    background: #0A1228;
+  }
+
+  @media (min-width: 421px) {
+    /* Desk backdrop, so the framed phone reads as a device sitting on a
+       surface rather than a stripe on a wall. */
+    body {
+      background-color: #05070d;
+      background-image:
+        radial-gradient(60% 50% at 50% 0%, rgba(23, 42, 71, 0.55) 0%, rgba(5, 7, 13, 0) 70%);
+    }
+    #app-frame {
+      /* transform (not just overflow) is what contains the fixed overlays. */
+      transform: translateZ(0);
+      /* A fixed height - not min-height - is essential. The overlays are
+         position:fixed, so with a transformed frame they anchor to the frame's
+         padding box; if the frame were content-height, `bottom-0` on the
+         Settings sheet would sit at the bottom of the whole scrolled page
+         instead of the bottom of the screen. Pinning the frame to the viewport
+         and scrolling inside it makes the desktop behave exactly like a phone:
+         the sheet is always on screen, and the content scrolls behind it. */
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      /* Overscroll chaining would rubber-band the desk backdrop behind the
+         device, which reads as a bug rather than as a phone. */
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      box-shadow:
+        0 0 0 10px #11151c,
+        0 0 0 11px rgba(148, 163, 184, 0.22),
+        0 40px 90px -20px rgba(0, 0, 0, 0.85);
+    }
+    /* The sheet is capped against the frame, not the viewport, so it can never
+       outgrow the device. overflow-y:auto on the element already in the markup
+       keeps the channel picker and SIM list scrollable when they do not fit. */
+    #settings-panel { max-height: 90%; }
+    /* A scrollbar inside the frame is noise on a phone mock. */
+    #app-frame::-webkit-scrollbar { width: 0; height: 0; }
+    #app-frame { scrollbar-width: none; }
+  }
+
   .brand-tile {
     position: relative;
     display: block;
@@ -323,6 +387,14 @@
 </style>
 </head>
 <body class="min-h-screen bg-[#0A1228] text-slate-100 antialiased selection:bg-emerald-400/30 selection:text-emerald-50">
+  <!--
+    Phone frame. Opens before every position:fixed overlay on purpose:
+    #active-glow, #onboarding, #settings-backdrop and #settings-panel all resolve
+    against the nearest transformed ancestor, so the frame (see the CSS above)
+    is what keeps the Settings sheet at 420px instead of spanning a desktop
+    monitor. Closes at the very end of <body>, after the page script.
+  -->
+  <div id="app-frame">
   <!-- Midnight backdrop for the active state; cross-fades in with body.active-mode
        and sits behind every other layer (fixed, pointer-events: none). -->
   <div id="active-glow" class="pointer-events-none fixed inset-0" aria-hidden="true"></div>
@@ -451,6 +523,8 @@
     </section>
   </div>
 
+  <!-- max-w-md is 448px, wider than the 420px frame; the frame's own max-width
+       is what actually bounds the column, and this stays the content gutter. -->
   <div class="relative mx-auto min-h-screen w-full max-w-md px-4 pb-12">
     <!-- top bar -->
     <header class="flex items-center justify-between pt-8">
@@ -1194,5 +1268,6 @@
       setInterval(refresh, 2500);
     </script>
   </div>
+  </div><!-- /#app-frame -->
 </body>
 </html>

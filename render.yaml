@@ -1,0 +1,127 @@
+# Render blueprint for the web admin + withdrawal API.
+#
+# This is the recommended target. The service is not a pure request/response
+# app: it holds a PostgreSQL pool, a BullMQ worker draining a Redis queue, a
+# transactional-outbox publisher on a timer, and an SSE stream that stays open
+# for the console. Serverless platforms freeze between invocations and cap
+# response duration, so the worker and the live stream both need a long-lived
+# process. Render runs the API and the worker as two services off one image.
+#
+# Deploy: push this repository to GitHub, then in Render choose
+# "New > Blueprint" and point it at the repo. Render reads this file, creates the
+# Postgres and Redis instances, wires DATABASE_URL / REDIS_URL into both
+# services, and runs the migrations as a pre-deploy command.
+#
+# Secrets: fill in the `sync: false` values in the environment blocks below (or
+# set them in the Render dashboard). ADMIN_PASSWORD and WEBHOOK_SECRET are
+# accepted as aliases of ADMIN_API_KEY and PAYMENT_WEBHOOK_SECRET.
+
+databases:
+  - name: withdrawal-db
+    databaseName: withdrawal
+    user: withdrawal
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+services:
+  # ---------------------------------------------------------------------------
+  # HTTP service: the admin console at /admin plus the /api routes the phones
+  # and the console call.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: withdrawal-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    # The schema must exist before the new code serves traffic, and the worker
+    # must not pick up jobs against an old schema, so migrations run here
+    # rather than on every boot.
+    preDeployCommand: npm run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS and forwards to the container, so X-Forwarded-For
+      # is the only place the real client address appears.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOCAL_INFRA_FALLBACK
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: withdrawal-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: withdrawal-redis
+          property: connectionString
+      # ---- operator secrets: replace every `sync: false` value -------------
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      # The gateway user the phones poll as; must match the user seeded in the
+      # database by the migrations.
+      - key: ADMIN_WITHDRAWAL_USER_ID
+        sync: false
+      - key: MIN_WITHDRAWAL
+        value: 1.00
+      - key: MAX_WITHDRAWAL
+        value: 100000.00
+      - key: WORKER_CONCURRENCY
+        value: "10"
+      - key: PROCESSING_TIMEOUT_SECONDS
+        value: "300"
+
+  # ---------------------------------------------------------------------------
+  # BullMQ worker: the only process that actually executes a payout. Runs the
+  # same image with a different command; it exposes no HTTP port.
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: withdrawal-worker
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: withdrawal-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: withdrawal-redis
+          property: connectionString
+      # The worker only touches the database and the queue, but config/env.ts
+      # validates the whole schema at import time, so these must be present.
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_WITHDRAWAL_USER_ID
+        sync: false
+      - key: WORKER_CONCURRENCY
+        value: "10"
+      - key: PROCESSING_TIMEOUT_SECONDS
+        value: "300"
+
+  - type: redis
+    name: withdrawal-redis
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: noeviction
+    # BullMQ requires a non-evicting Redis: losing a queued job silently drops a
+    # payout, so the keys must fail loudly instead.

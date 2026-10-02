@@ -8,6 +8,7 @@ import {
   listUsers,
   listWithdrawals,
   setDeviceStatus,
+  requestDeviceRestart,
   findWithdrawalOwner,
   DEVICE_ONLINE_WINDOW_SECONDS
 } from '../services/admin.service.js';
@@ -71,6 +72,22 @@ export async function updateDevice(request: FastifyRequest, reply: FastifyReply)
   const body = request.body as { activeStatus?: boolean };
   if (typeof body.activeStatus !== 'boolean') return reply.code(400).send({ success: false, error: 'activeStatus must be boolean' });
   const device = await setDeviceStatus(params.deviceId, body.activeStatus);
+  if (!device) return reply.code(404).send({ success: false, error: 'Device not found' });
+  return reply.send({ success: true, device });
+}
+
+/**
+ * Asks a device to re-arm.
+ *
+ * There is no push channel to a handset, so this clears the stored peer address
+ * and network telemetry and lets the Android client re-register on its next
+ * poll. The web app presents it as "Restart Device" and the copy says
+ * "re-arms on its next poll", so the operator is never told the phone rebooted
+ * when it did not.
+ */
+export async function restartDevice(request: FastifyRequest, reply: FastifyReply) {
+  const params = request.params as { deviceId: string };
+  const device = await requestDeviceRestart(params.deviceId);
   if (!device) return reply.code(404).send({ success: false, error: 'Device not found' });
   return reply.send({ success: true, device });
 }
