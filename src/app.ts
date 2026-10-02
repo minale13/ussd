@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyError } from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import rawBody from 'fastify-raw-body';
@@ -9,7 +9,7 @@ import * as admin from './controllers/admin.controller.js';
 import { dashboard as adminDashboard, dashboardScript as adminDashboardScript } from './controllers/admin-dashboard.controller.js';
 import { eventStream } from './controllers/admin-events.controller.js';
 import { smsCallback, smsEvents, authenticateGatewayDevice } from './controllers/sms.controller.js';
-import { env } from './config/env.js';
+import { env, envResolution } from './config/env.js';
 import { authenticateAdmin } from './middleware/admin-auth.js';
 
 export function buildApp() {
@@ -22,11 +22,36 @@ export function buildApp() {
   app.register(helmet);
   app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
   app.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
+
+  // An uncaught route error must not become an opaque platform failure. Vercel
+  // reports an unhandled exception as FUNCTION_INVOCATION_FAILED, which tells an
+  // operator nothing about what actually went wrong, so the message is logged in
+  // full here and the client gets a JSON body naming it.
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    request.log.error({ err: error }, 'request failed');
+    const status = error.statusCode ?? 500;
+    reply.code(status).send({
+      success: false,
+      error: status === 500 ? 'Internal server error' : error.message
+    });
+  });
+  app.setNotFoundHandler((request, reply) => {
+    reply.code(404).send({ success: false, error: `Route ${request.method} ${request.url} not found` });
+  });
+
   app.get('/health', async () => ({
-    status: env.LOCAL_INFRA_FALLBACK && env.NODE_ENV === 'development' ? 'degraded' : 'ok',
-    database: env.LOCAL_INFRA_FALLBACK && env.NODE_ENV === 'development' ? 'disabled' : 'required',
-    redis: env.LOCAL_INFRA_FALLBACK && env.NODE_ENV === 'development' ? 'disabled' : 'required'
+    status: envResolution.missing.length === 0 ? 'ok' : 'degraded',
+    database: envResolution.missing.includes('DATABASE_URL') ? 'disabled' : 'required',
+    redis: envResolution.missing.includes('REDIS_URL') ? 'disabled' : 'required',
+    admin: envResolution.adminConfigured ? 'configured' : 'not configured',
+    // Names only, never values, so the response is safe to expose publicly.
+    // This is what makes a half-finished Vercel dashboard diagnosable: the
+    // endpoint reports 200 and lists exactly which variables are absent.
+    missing: envResolution.missing
   }));
+  // The bare host is what an operator types first, so send them to the console
+  // instead of returning a 404 from the catch-all rewrite.
+  app.get('/', async (_request, reply) => reply.redirect('/admin', 302));
   app.get('/admin', adminDashboard);
   // Every screen of the app is a real, bookmarkable URL. They all serve the same
   // single-page shell; the client router picks the screen from the pathname, so a
