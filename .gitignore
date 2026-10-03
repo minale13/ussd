@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# Compiled output for the serverless function. `npm run build` regenerates it
+# (tsconfig.api.json). It is deliberately NOT gitignored from Vercel: everything
+# under api/ ships with the function, which is what api/index.js now relies on.
+api/lib/
 .env
 coverage/
 

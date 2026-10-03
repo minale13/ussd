@@ -23,6 +23,12 @@
  * `/health`. Loading lazily means a startup problem becomes a 500 with a
  * readable JSON body naming the missing variables, and a failure that is only
  * about one request no longer implicates the whole function.
+ *
+ * Why `./lib/app.js` and not the main `dist/` build: `tsconfig.api.json` compiles
+ * src/ into api/lib/, and everything under api/ ships with the function by
+ * definition. Importing across into the gitignored dist/ left the file out of the
+ * bundle entirely, and Vercel failed at runtime with
+ * `Cannot find module '/var/task/dist/src/app.js'`.
  */
 
 /** Memoised so the graph is evaluated once per warm instance, not once per request. */
@@ -30,7 +36,7 @@ let appPromise;
 
 async function getApp() {
   appPromise ??= (async () => {
-    const { buildApp } = await import('../dist/src/app.js');
+    const { buildApp } = await import('./lib/app.js');
     const app = buildApp();
     // Without the await, a request can be routed before helmet, the rate limiter
     // and the raw-body plugin are registered.

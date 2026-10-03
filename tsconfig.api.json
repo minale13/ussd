@@ -1,0 +1,28 @@
+{
+  "//": [
+    "Second compile, dedicated to the serverless function in api/.",
+    "",
+    "The main tsconfig emits dist/ for `npm start` and the worker. The function",
+    "needs the same code, but importing across into the gitignored dist/ is",
+    "exactly what made Vercel fail at runtime with:",
+    "",
+    "  Cannot find module '/var/task/dist/src/app.js'",
+    "",
+    "Everything inside api/ ships with the function by definition, so this emits",
+    "src/ to api/lib/ and api/index.js imports ./lib/app.js - a relative path",
+    "that can never point outside the bundle."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "api/lib",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "api"]
+}

@@ -16,6 +16,12 @@
 # dist ships either way.
 !dist/**
 
+# The function's compiled app lives at api/lib (tsconfig.api.json) and is
+# imported as ./lib/app.js, so it must ship. .gitignore excludes it from git,
+# but that has no bearing on the deployment - this file replaces .gitignore and
+# never lists it. The negation is a safeguard for a build that applied both.
+!api/lib/**
+
 # Reinstalled by npm ci; uploading it only slows the build.
 node_modules
 coverage

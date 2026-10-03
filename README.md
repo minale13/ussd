@@ -80,11 +80,7 @@ The single rewrite in `vercel.json` sends **every** path to the function:
 
 ```json
 "functions": {
-  "api/index.js": {
-    "memory": 1024,
-    "maxDuration": 60,
-    "includeFiles": "dist/**"
-  }
+  "api/index.js": { "memory": 1024, "maxDuration": 60 }
 },
 "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 ```
@@ -102,33 +98,33 @@ they 404ed with no error anywhere else.
 
 #### Why `dist/` must ship, and why `functions` not `builds`
 
-`api/index.js` imports `../dist/src/app.js`, which `npm run build` compiles with
-`tsc`. `.gitignore` excludes `dist/` — correct for git, but Vercel honours
-`.gitignore` when collecting deployment files, so the compiled app was built on
-the build machine and then dropped before bundling, failing at runtime with
-`Cannot find module '/var/task/dist/src/app.js'`.
+`api/index.js` imports the compiled app. The main `tsconfig.json` emits `dist/`
+for `npm start` and the worker, but importing across into that gitignored tree is
+what made Vercel fail at runtime with:
 
-Two things keep it in:
+```
+Cannot find module '/var/task/dist/src/app.js'
+```
 
-- `.vercelignore` **replaces** `.gitignore` for a deployment, so it never lists
-  `dist`, while still excluding `.env` and `node_modules`. It also carries an
-  explicit `!dist/**` re-include as a safeguard for a Vercel build that applies
-  both ignore files.
-- `includeFiles: "dist/**"` on the function entry, which tells the function
-  bundler to copy the compiled app into the deployment explicitly rather than
-  relying on import tracing alone.
+The fix is a second compile, `tsconfig.api.json`, which emits `src/` to
+**`api/lib/`**. `api/index.js` then imports `./lib/app.js` — a path that can never
+point outside the function, because everything under `api/` ships with it by
+definition. `npm run build` runs both passes.
 
-`includeFiles` is valid **only** under `functions`, never under `builds`.
-Vercel's published schema allows a `builds[]` entry exactly these properties:
+`.vercelignore` keeps `dist/` and `api/lib/` out of the exclusion list; `api/lib`
+is gitignored from git only, which has no bearing on a deployment.
+
+The manifest uses `functions`, not `builds`, because that is the only form whose
+entry accepts the settings this needs. Vercel's published schema allows a
+`builds[]` entry exactly these properties:
 
 ```
 config, src, use
 ```
 
-and marks it `additionalProperties: false`, so `includeFiles` there fails the
-build with `should NOT have additional property 'includeFiles'`. A `functions[]`
-entry allows `includeFiles`, `excludeFiles`, `memory`, `maxDuration`, `runtime`,
-`regions` and more. That is why the manifest uses `functions` + `rewrites`.
+marked `additionalProperties: false`, so anything else there fails the build with
+`should NOT have additional property '...'`. A `functions[]` entry allows
+`memory`, `maxDuration`, `runtime`, `regions`, `includeFiles` and more.
 
 The console HTML is not a static file here: `/` redirects to `/admin` and
 `/admin` is rendered by `src/app.ts` from `DashboardLayout()`. `public/` exists
