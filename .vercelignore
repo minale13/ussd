@@ -1,0 +1,41 @@
+# Vercel deployment ignore list.
+#
+# Vercel reads this file INSTEAD OF .gitignore when deciding which files reach a
+# deployment. That distinction matters here: .gitignore excludes `dist/`, which
+# is right for git (build output must not be committed) but was also excluding
+# the compiled app from the serverless function bundle. tsc produced dist/ on
+# the build machine and Vercel then dropped it, so at runtime the function
+# failed with:
+#
+#   Cannot find module '/var/task/dist/src/app.js'
+#
+# dist is therefore deliberately absent from the list below. Do not add it.
+#
+# Everything excluded here is either reinstalled by `npm ci` at build time or is
+# local-only. Secrets stay excluded: .env must never be uploaded.
+
+# Reinstalled by npm ci; uploading it only slows the build.
+node_modules
+coverage
+
+# Secrets. The deployment reads these from project environment variables.
+.env
+.env.*
+
+# Android project: irrelevant to the web function, and large.
+android
+
+# Editor / OS noise and scratch output.
+.git
+.github
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.log
+*.txt
+.tmp-*
+
+# Local preview artefacts.
+admin-preview.log
+do-prev.cmd
