@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.api.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.api.json && node scripts/copy-app-assets.mjs",
     "build:api": "tsc -p tsconfig.api.json",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/src/server.js",

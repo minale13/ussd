@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Serves the Android App Agent UI at the bare host.
@@ -21,7 +22,19 @@ import path from 'node:path';
  *    other route, /admin included.
  */
 
-const ASSET_DIR = path.join(process.cwd(), 'android', 'app', 'src', 'main', 'assets');
+/**
+ * Where the agent assets may live, most specific first.
+ *
+ * `scripts/copy-app-assets.mjs` stages them into `api/assets/`, which is inside
+ * the function directory Vercel already ships, so the first entry is the one
+ * that holds in a deployment. The repository copy is the fallback for local dev
+ * and server runs, where the build has not necessarily been executed.
+ */
+const ASSET_DIRS = [
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets'),
+  path.join(process.cwd(), 'api', 'assets'),
+  path.join(process.cwd(), 'android', 'app', 'src', 'main', 'assets')
+];
 
 /**
  * Keeps Helmet's console-wide policy from blocking the page's inline script,
@@ -41,28 +54,32 @@ const AGENT_CSP = [
 ].join('; ');
 
 async function sendAsset(reply: FastifyReply, file: string, type: string): Promise<void> {
-  try {
-    const body = await readFile(path.join(ASSET_DIR, file), 'utf8');
-    return reply
-      .header('cache-control', 'no-store')
-      .header('content-security-policy', AGENT_CSP)
-      .type(type)
-      .send(body);
-  } catch {
-    // A missing asset must degrade into an explanation, never an opaque 500:
-    // this is the route a visitor lands on first.
-    return reply
-      .header('cache-control', 'no-store')
-      .type('text/html; charset=utf-8')
-      .send(
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
-          '<meta name="viewport" content="width=device-width,initial-scale=1"><title>USSD Gateway</title></head>' +
-          '<body style="font:16px/1.6 system-ui,sans-serif;padding:2rem">' +
-          '<h1>App Agent UI unavailable</h1>' +
-          '<p>The agent interface asset was not bundled with this deployment.</p>' +
-          '<p><a href="/admin">Open the admin console</a></p></body></html>'
-      );
+  for (const dir of ASSET_DIRS) {
+    try {
+      const body = await readFile(path.join(dir, file), 'utf8');
+      return reply
+        .header('cache-control', 'no-store')
+        .header('content-security-policy', AGENT_CSP)
+        .type(type)
+        .send(body);
+    } catch {
+      // Try the next candidate location.
+    }
   }
+
+  // A missing asset must degrade into an explanation, never an opaque 500:
+  // this is the route a visitor lands on first.
+  return reply
+    .header('cache-control', 'no-store')
+    .type('text/html; charset=utf-8')
+    .send(
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1"><title>USSD Gateway</title></head>' +
+        '<body style="font:16px/1.6 system-ui,sans-serif;padding:2rem">' +
+        '<h1>App Agent UI unavailable</h1>' +
+        '<p>The agent interface asset was not bundled with this deployment.</p>' +
+        '<p><a href="/admin">Open the admin console</a></p></body></html>'
+    );
 }
 
 export async function appAgentUi(_request: FastifyRequest, reply: FastifyReply) {
