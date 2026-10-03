@@ -78,6 +78,18 @@ export const CLIENT_APP = `
       api('/api/admin/transactions?limit=200'),
       api('/api/admin/sms?limit=100').catch(function () { return { events: [] }; })
     ]).then(function (responses) {
+      // A degraded read still answers 200 with an empty collection, so the
+      // numbers on screen are placeholders rather than measurements. Marking the
+      // gateway offline and saying so keeps an operator from reading "no money
+      // moved" when the truth is "the database could not be reached" - the
+      // difference that matters when the next action is approving a payout.
+      var degraded = responses.filter(function (r) { return r && r.degraded; });
+      if (degraded.length) {
+        setGatewayStatus(false, 'Data unavailable');
+        notify('Gateway data unavailable: some figures could not be loaded.', 'error');
+      }
+      state.degraded = degraded.length > 0;
+
       state.devices = responses[1].devices || [];
       state.transactions = responses[2].transactions || [];
       state.cashIns = (responses[3].events || []).filter(function (event) {

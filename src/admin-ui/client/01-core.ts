@@ -26,6 +26,9 @@ export const CLIENT_CORE = `
     overview: {},
     unlocked: false,
     loading: false,
+    // True when the last load came back degraded: the collections are empty
+    // because the database was unreachable, not because there is nothing to show.
+    degraded: false,
     firstLoad: true,
     notifications: true,
     // Screen state. route is the visible screen and txnFilter the active

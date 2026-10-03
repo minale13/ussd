@@ -16,6 +16,7 @@ import { createManualWithdrawal, cancelWithdrawal } from '../services/withdrawal
 import { withdrawalStatuses } from '../types/withdrawal.js';
 import { env } from '../config/env.js';
 import { normalizeMoney } from '../utils/money.js';
+import { degradeable } from '../utils/degrade.js';
 import { z } from 'zod';
 
 export const manualWithdrawalSchema = z.object({
@@ -49,12 +50,26 @@ export async function manualWithdrawal(request: FastifyRequest, reply: FastifyRe
   }
 }
 
-export async function overview(_request: FastifyRequest, reply: FastifyReply) {
-  return reply.send({ success: true, overview: await getFinancialOverview() });
+/**
+ * Same keys and types as a real overview row, so the console renders without
+ * NaN. The values are placeholders and are only ever shown because the
+ * response is also flagged `degraded`.
+ */
+const UNAVAILABLE_OVERVIEW = {
+  total_cash_in: '0.00',
+  total_withdrawals: '0.00',
+  remaining_balance: '0.00',
+  cash_in_today: '0.00',
+  withdrawals_today: '0.00',
+  balance_today: '0.00'
+};
+
+export async function overview(request: FastifyRequest, reply: FastifyReply) {
+  return degradeable(request, reply, 'overview', UNAVAILABLE_OVERVIEW, getFinancialOverview);
 }
 
-export async function devices(_request: FastifyRequest, reply: FastifyReply) {
-  return reply.send({ success: true, devices: await listDevices() });
+export async function devices(request: FastifyRequest, reply: FastifyReply) {
+  return degradeable(request, reply, 'devices', [] as Awaited<ReturnType<typeof listDevices>>, () => listDevices());
 }
 
 /**
@@ -64,7 +79,9 @@ export async function devices(_request: FastifyRequest, reply: FastifyReply) {
 export async function transactions(request: FastifyRequest, reply: FastifyReply) {
   const requested = Number((request.query as { limit?: string }).limit ?? 50);
   const limit = Math.min(Math.max(Number.isFinite(requested) ? Math.trunc(requested) : 50, 1), 200);
-  return reply.send({ success: true, transactions: await listTransactions(limit) });
+  return degradeable(request, reply, 'transactions', [] as Awaited<ReturnType<typeof listTransactions>>, () =>
+    listTransactions(limit)
+  );
 }
 
 export async function updateDevice(request: FastifyRequest, reply: FastifyReply) {
