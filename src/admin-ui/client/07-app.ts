@@ -42,6 +42,26 @@ export const CLIENT_APP = `
    * message is money arriving on a device's SIM. It is deliberately kept out of
    * the payout ledger, which is the platform's own record of money it sent.
    */
+  /**
+   * Credential check for the sign-in form.
+   *
+   * Asked before anything is loaded, so the answer depends on the typed
+   * credentials alone. The console used to discover a valid password by calling
+   * /api/admin/overview, which meant a database or Redis outage produced the
+   * same 500 as a wrong password - the operator was told their key was bad when
+   * it was in fact correct. This call cannot fail for that reason.
+   *
+   * The credentials still travel as the usual headers; the empty body is only
+   * there because Fastify rejects a JSON content-type with no payload.
+   */
+  function signIn() {
+    return api('/api/admin/login', { method: 'POST', body: '{}' }).then(function () {
+      return { ok: true };
+    }).catch(function (error) {
+      return { ok: false, message: authMessage(error) };
+    });
+  }
+
   function load() {
     if (state.loading) return Promise.resolve();
     if (!byId('key').value.trim()) {

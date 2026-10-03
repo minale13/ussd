@@ -130,4 +130,29 @@ describe('credential-only sign-in', () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  it('answers the empty JSON body the console client actually sends', async () => {
+    // Fastify rejects a JSON content-type with no payload, so the client posts
+    // "{}" with the credentials in headers. This pins that exact shape.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      headers: { 'content-type': 'application/json', 'x-admin-username': 'admin', 'x-admin-key': KEY },
+      payload: '{}'
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ success: true });
+  });
+
+  it('rejects a refused key without touching any datastore', async () => {
+    // The whole point of the endpoint: the answer is a pure credential decision,
+    // so it stays 401 even when there is no database to read.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      headers: { 'x-admin-username': 'admin', 'x-admin-key': 'nope-nope-nope' }
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ success: false, error: 'Invalid credentials' });
+  });
 });

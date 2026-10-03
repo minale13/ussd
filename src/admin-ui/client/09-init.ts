@@ -108,10 +108,21 @@ export const CLIENT_INIT = `
       // The click is acknowledged immediately: disabled button, spinner and a
       // "Signing in..." label, so a slow round-trip never reads as a dead page.
       setLoginPending(true);
-      load().then(function () {
-        // Guarantees the button is live again whatever load() did internally.
-        setLoginPending(false);
-        if (state.unlocked) navigate('home');
+      // The credentials are checked on their own before any data is requested,
+      // so a refused password can never be confused with an unreachable backend.
+      signIn().then(function (result) {
+        if (!result.ok) {
+          formFeedback('login-feedback', result.message, 'error');
+          setGatewayStatus(false, 'Offline');
+          setLoginPending(false);
+          return;
+        }
+        // Only now is the dashboard fetched. If the datastore is down the
+        // operator is already signed in, and load() reports that as a server
+        // error rather than as a failed sign-in.
+        return load().then(function () {
+          if (state.unlocked) navigate('home');
+        });
       });
     });
 

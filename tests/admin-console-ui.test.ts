@@ -77,6 +77,9 @@ async function boot(path = '/admin', options: { reject?: boolean } = {}): Promis
     }
     calls.push({ path: target, method: init?.method ?? 'GET', body });
     if (options.reject) return denied();
+    // Sign-in is now its own credential-only call, made before any data is
+    // loaded. It has to be stubbed or every unlock would be rejected here.
+    if (target === '/api/admin/login') return json({ success: true });
     if (target === '/api/admin/overview') return json({ success: true, overview: OVERVIEW });
     if (target === '/api/admin/devices') return json({ success: true, devices: FLEET });
     if (target === '/api/admin/transactions') return json({ success: true, transactions: LEDGER });
