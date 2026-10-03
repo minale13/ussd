@@ -7,6 +7,8 @@ import * as withdrawal from './controllers/withdrawal.controller.js';
 import * as webhook from './controllers/webhook.controller.js';
 import * as admin from './controllers/admin.controller.js';
 import { dashboard as adminDashboard, dashboardScript as adminDashboardScript } from './controllers/admin-dashboard.controller.js';
+import { appAgentStyles, appAgentUi } from './controllers/app-ui.controller.js';
+import { adminLogin } from './controllers/admin-login.controller.js';
 import { eventStream } from './controllers/admin-events.controller.js';
 import { smsCallback, smsEvents, authenticateGatewayDevice } from './controllers/sms.controller.js';
 import { env, envResolution } from './config/env.js';
@@ -49,9 +51,12 @@ export function buildApp() {
     // endpoint reports 200 and lists exactly which variables are absent.
     missing: envResolution.missing
   }));
-  // The bare host is what an operator types first, so send them to the console
-  // instead of returning a 404 from the catch-all rewrite.
-  app.get('/', async (_request, reply) => reply.redirect('/admin', 302));
+  // The bare host is the App Agent UI that ships in the APK. It used to redirect
+  // to /admin, which meant the two surfaces could never be told apart and the
+  // console login was the first thing anyone saw at the root. They are separate
+  // documents now; /admin is the only route that serves the dashboard.
+  app.get('/', appAgentUi);
+  app.get('/tailwind.css', appAgentStyles);
   app.get('/admin', adminDashboard);
   // Every screen of the app is a real, bookmarkable URL. They all serve the same
   // single-page shell; the client router picks the screen from the pathname, so a
@@ -61,6 +66,11 @@ export function buildApp() {
     app.get(`/admin/${section}`, adminDashboard);
   }
   app.get('/admin/app.js', adminDashboardScript);
+  // Credential-only sign-in. Kept off the authenticated reads below because it is
+  // the one admin route that must answer while the operator is still locked, and
+  // answering it must not depend on the database being reachable.
+  app.post('/api/admin/login', adminLogin);
+  app.get('/api/admin/login', async (_request, reply) => reply.redirect('/admin', 302));
   app.get('/api/admin/overview', { preHandler: authenticateAdmin }, admin.overview);
   app.get('/api/admin/devices', { preHandler: authenticateAdmin }, admin.devices);
   app.get('/api/admin/transactions', { preHandler: authenticateAdmin }, admin.transactions);

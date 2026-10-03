@@ -6,7 +6,11 @@
   "functions": {
     "api/index.js": {
       "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": [
+        "android/app/src/main/assets/dashboard.html",
+        "android/app/src/main/assets/tailwind.css"
+      ]
     }
   },
   "env": {
