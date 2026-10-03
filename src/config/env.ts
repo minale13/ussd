@@ -131,13 +131,14 @@ export function resolveEnv(source: NodeJS.ProcessEnv = process.env): ResolvedEnv
 
   const env = parseEnv(filled);
 
-  // Only the secret decides whether sign-in is usable. The username has a
-  // schema default, so treating "no username set" as unconfigured would lock an
-  // operator out of a deployment that is otherwise complete.
+  // Only the secret decides whether sign-in is usable. The username is read from
+  // the *parsed* env, which carries the schema default, not from the raw
+  // environment: reading the raw value here would report "not configured" when
+  // ADMIN_USERNAME is unset, even though the schema defaults it to "admin" and
+  // that same default is what the login form is prefilled with. The gate and the
+  // form would then disagree and every admin call would answer 503.
   const adminConfigured =
-    !missing.includes('ADMIN_API_KEY') &&
-    typeof merged.ADMIN_USERNAME === 'string' &&
-    merged.ADMIN_USERNAME.trim().length > 0;
+    !missing.includes('ADMIN_API_KEY') && env.ADMIN_USERNAME.trim().length > 0;
 
   return { env, missing, adminConfigured };
 }

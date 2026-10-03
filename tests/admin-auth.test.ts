@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { authenticateAdmin } from '../src/middleware/admin-auth.js';
-import { envSchema, parseEnv } from '../src/config/env.js';
+import { envSchema, parseEnv, resolveEnv } from '../src/config/env.js';
 
 /**
  * The console signs in with a username *and* a password.
@@ -113,5 +113,39 @@ describe('admin authentication', () => {
       ADMIN_WITHDRAWAL_USER_ID: '11111111-1111-4111-8111-111111111111'
     });
     expect(parsed.ADMIN_USERNAME).toBe('admin');
+  });
+
+  it('considers a password-only deployment sign-in capable', () => {
+    // Regression: the gate used to read ADMIN_USERNAME off the raw environment,
+    // so a deployment that set only ADMIN_PASSWORD (folded into ADMIN_API_KEY by
+    // the alias normalisation) reported `adminConfigured: false`. The console
+    // then refused every call with 503 "Admin console is not configured" even
+    // though the login form was prefilled with the schema default that the gate
+    // had rejected. The gate must follow the parsed username, not the raw one.
+    const resolved = resolveEnv({
+      DATABASE_URL: 'postgres://withdrawal:withdrawal@localhost:5432/withdrawal',
+      REDIS_URL: 'redis://localhost:6379',
+      JWT_SECRET: 'test-jwt-secret-that-is-at-least-32-characters',
+      PAYMENT_WEBHOOK_SECRET: 'test-webhook-secret',
+      ADMIN_PASSWORD: 'Testkey01',
+      ADMIN_WITHDRAWAL_USER_ID: '11111111-1111-4111-8111-111111111111'
+    });
+    expect(resolved.adminConfigured).toBe(true);
+    expect(resolved.env.ADMIN_USERNAME).toBe('admin');
+  });
+
+  it('keeps a deployment with no admin password closed', () => {
+    // The complementary half of the test above: honouring the username default
+    // must not turn an unset password into a usable console. The placeholder
+    // secret is generated per process precisely so it can never be guessed, and
+    // the gate has to keep refusing it.
+    const resolved = resolveEnv({
+      DATABASE_URL: 'postgres://withdrawal:withdrawal@localhost:5432/withdrawal',
+      REDIS_URL: 'redis://localhost:6379',
+      JWT_SECRET: 'test-jwt-secret-that-is-at-least-32-characters',
+      PAYMENT_WEBHOOK_SECRET: 'test-webhook-secret',
+      ADMIN_WITHDRAWAL_USER_ID: '11111111-1111-4111-8111-111111111111'
+    });
+    expect(resolved.adminConfigured).toBe(false);
   });
 });
