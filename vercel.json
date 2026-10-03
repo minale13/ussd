@@ -20,8 +20,8 @@
   },
   "routes": [
     {
-      "src": "/((?!api/index$).*)",
-      "dest": "/api/index"
+      "src": "/(.*)",
+      "dest": "api/index.js"
     }
   ]
 }
