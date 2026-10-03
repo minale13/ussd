@@ -76,11 +76,47 @@ single serverless function. Two caveats are deliberate:
   response-duration limits, so live updates may drop. Deploy to Render for the
   full console.
 
-The single rewrite in `vercel.json` sends every path except `/api/index` to the
-function. The exclusion has to name *only* the function's own path: excluding the
-whole `/api/` prefix instead would leave `/api/webhooks/payment`, every
+The single route in `vercel.json` sends **every** path to the function:
+
+```json
+"routes": [{ "src": "/(.*)", "dest": "api/index.js" }]
+```
+
+Two details are load-bearing, and both have bitten this deployment:
+
+- `routes[].src` is parsed with the **path-to-regexp** grammar, not as a
+  JavaScript regex. A negative lookahead such as `/((?!api/index$).*)` is not
+  valid there: it matches nothing at all, every request falls through to
+  Vercel's edge, and the whole deployment answers `404 NOT_FOUND`. `/(.*)` is
+  the canonical catch-all.
+- `routes` is required, not `rewrites`. Vercel rejects `rewrites` alongside
+  `builds`, so declaring the runtime explicitly means routing through `routes`.
+
+The route must cover the API paths as well as the console. An earlier version
+excluded the whole `/api/` prefix, which left `/api/webhooks/payment`, every
 `/api/admin/*` call and the phones' `/api/withdrawals/pending` poll unrouted, so
-they would 404 with no error anywhere else.
+they 404ed with no error anywhere else.
+
+#### Why `dist/` must ship
+
+`api/index.js` imports `../dist/src/app.js`, which `npm run build` compiles with
+`tsc`. `.gitignore` excludes `dist/` — correct for git, but Vercel honours
+`.gitignore` when collecting deployment files, so the compiled app was built on
+the build machine and then dropped before bundling, failing at runtime with
+`Cannot find module '/var/task/dist/src/app.js'`.
+
+Two mechanisms keep it in, and both are needed:
+
+- `.vercelignore`, which **replaces** `.gitignore` for a deployment. It
+  deliberately does not list `dist`, while still excluding `.env` and
+  `node_modules`.
+- `includeFiles: ["dist/**"]` on the build entry, so the compiled app is
+  bundled regardless of ignore-rule ordering.
+
+The console HTML is not a static file here: `/` redirects to `/admin` and
+`/admin` is rendered by `src/app.ts` from `DashboardLayout()`. `public/` exists
+only so a static-output check can never fail, and no route uses a
+`handle: filesystem`, so it can never shadow a real route.
 
 #### Set the secrets on the platform, never in `vercel.json`
 
