@@ -108,10 +108,52 @@ export const CLIENT_CORE = `
       body: request.body
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
-        if (!response.ok) throw new Error(body.error || 'Request failed with status ' + response.status);
+        if (!response.ok) {
+          // The status rides along on the error so the caller can tell a refused
+          // password from an unconfigured deployment or a server fault, instead of
+          // showing one catch-all message for all three.
+          var error = new Error(body.error || 'Request failed with status ' + response.status);
+          error.status = response.status;
+          throw error;
+        }
         return body;
       });
     });
+  }
+
+  /**
+   * Turns a failed admin call into something an operator can act on.
+   *
+   * A wrong password and an unset ADMIN_API_KEY look identical from the login
+   * screen but need completely different fixes, so they get different text.
+   * error.status is absent when fetch itself failed, which is the network case.
+   */
+  function authMessage(error) {
+    var status = error && error.status;
+    if (status === 401 || status === 403) return 'Invalid username or password.';
+    if (status === 503) return 'Admin console is not configured. Set ADMIN_API_KEY in the deployment environment.';
+    if (status === 429) return 'Too many attempts. Wait a minute and try again.';
+    if (!status) return 'Connection failed. Check your network and try again.';
+    if (status >= 500) return 'The gateway reported a server error. Try again shortly.';
+    return (error && error.message) || 'Sign-in failed. Try again.';
+  }
+
+  /**
+   * Busy state for the Sign In button.
+   *
+   * The click has to be visibly acknowledged: a disabled button with no other
+   * change is indistinguishable from a dead page on a slow connection, and it
+   * invites a second click while the first is still in flight.
+   */
+  function setLoginPending(pending) {
+    var button = byId('unlock');
+    if (!button) return;
+    button.disabled = Boolean(pending);
+    button.classList.toggle('is-pending', Boolean(pending));
+    var label = byId('unlock-label');
+    if (label) label.textContent = pending ? 'Signing in...' : 'Sign In';
+    var spinner = byId('unlock-spinner');
+    if (spinner) spinner.hidden = !pending;
   }
 
   function setGatewayStatus(online, label) {

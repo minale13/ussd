@@ -95,9 +95,11 @@ export const CLIENT_APP = `
       applyRoute(state.route, false);
       openEventStream();
     }).catch(function (error) {
-      var message = error && error.message ? error.message : 'Unable to reach the gateway.';
-      if (message === 'Admin authentication required') {
-        message = 'Incorrect admin password. Check the ADMIN_API_KEY value.';
+      // A refused password, an unconfigured deployment and a dead network are
+      // three different problems that used to collapse into one catch-all line.
+      // authMessage keeps them apart so the operator knows what to change.
+      var message = authMessage(error);
+      if (!state.unlocked) {
         state.unlocked = false;
         document.body.classList.remove('unlocked');
         // The stream is authenticated with the same key, so it is no longer
@@ -105,12 +107,21 @@ export const CLIENT_APP = `
         closeEventStream();
       }
       setGatewayStatus(false, 'Offline');
-      notify(message, 'error');
+      // The floating toast sits at z-index 90 and the login overlay at 95, so a
+      // toast raised while the operator is still locked is painted underneath it
+      // and never seen - precisely when they most need to read it. Failures that
+      // happen before sign-in are therefore reported in the login form itself;
+      // a failure after sign-in is a background refresh and does use the toast.
+      if (state.unlocked) notify(message, 'error');
+      else formFeedback('login-feedback', message, 'error');
     }).then(function () {
       // Skeletons are only for the opening paint; leaving them up after a
       // failure would hide the empty states behind shimmer bars.
       if (firstPaint) setSkeletons(false);
       setLoading(false);
+      // Always clears the busy state, so a failed attempt leaves the button
+      // ready to be pressed again.
+      setLoginPending(false);
     });
   }
 

@@ -74,8 +74,8 @@ export function LoginScreen(adminUsername = 'admin') {
       </div>
       <span class="field-error">${icon('info', 13)}<span>Enter your admin password.</span></span>
     </div>
-    <div class="form-feedback" id="login-feedback" role="status" aria-live="polite"></div>
-    <button class="btn btn-primary btn-block" id="unlock" type="submit">Sign In ${icon('arrowRight', 18)}</button>
+    <div class="form-feedback" id="login-feedback" role="alert" aria-live="assertive"></div>
+    <button class="btn btn-primary btn-block" id="unlock" type="submit"><span class="unlock-spinner" id="unlock-spinner" hidden>${icon('loader', 17, 'spin')}</span><span id="unlock-label">Sign In</span>${icon('arrowRight', 18)}</button>
   </form>
   <p class="login-foot">Protected by the admin API key. The key is held in this form only and is sent as a request header &mdash; never stored on the device.</p>
 </div>`;

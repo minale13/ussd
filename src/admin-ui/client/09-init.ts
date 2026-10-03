@@ -105,7 +105,12 @@ export const CLIENT_INIT = `
         formFeedback('login-feedback', 'Enter your administrator username and password.', 'error');
         return;
       }
+      // The click is acknowledged immediately: disabled button, spinner and a
+      // "Signing in..." label, so a slow round-trip never reads as a dead page.
+      setLoginPending(true);
       load().then(function () {
+        // Guarantees the button is live again whatever load() did internally.
+        setLoginPending(false);
         if (state.unlocked) navigate('home');
       });
     });

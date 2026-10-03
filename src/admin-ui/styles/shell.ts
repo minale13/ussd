@@ -87,6 +87,12 @@ body.unlocked .login{display:none}
 .login-sub{font-size:13.5px;color:var(--text-2);line-height:1.5}
 .login-form{display:flex;flex-direction:column;gap:14px}
 .login-foot{margin-top:6px;font-size:11.5px;line-height:1.6;color:var(--text-3)}
+/* Sign In busy state. The spinner is a sibling of the label so swapping the text
+   cannot disturb the button box, and [hidden] is restored explicitly because the
+   inline-flex below would otherwise defeat the attribute. */
+.unlock-spinner{display:inline-flex;align-items:center;margin-right:8px}
+.unlock-spinner[hidden]{display:none}
+#unlock.is-pending{cursor:progress;opacity:.82}
 
 /* ---------------- Top bar ---------------- */
 .topbar{

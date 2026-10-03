@@ -83,7 +83,9 @@ const PATHS = {
   /** Empty-state / generic no data. */
   empty: '<rect x="3.5" y="5.5" width="17" height="14" rx="3"/><path d="M3.5 10.5h17"/><path d="M9 15h6"/>',
   /** Filter tab marker. */
-  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>'
+  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>',
+  /** Busy indicator for the Sign In button; paired with the CSS `spin` class. */
+  loader: '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4"/>'
 } as const;
 
 export type IconName = keyof typeof PATHS;
