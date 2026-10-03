@@ -30,8 +30,26 @@ coverage
 .env
 .env.*
 
-# Android project: irrelevant to the web function, and large.
-android
+# Android project: irrelevant to the web function, and large - with one exception.
+#
+# `npm run build` runs scripts/copy-app-assets.mjs, which stages the App Agent
+# view out of android/app/src/main/assets/ into api/assets/. Vercel reads THIS
+# file instead of .gitignore, so the bare `android` rule below deleted those
+# assets from the deployment, the copy could not find them, the script set
+# process.exitCode = 1 and the build died with:
+#
+#   Command "npm run build" exited with 1
+#
+# A negation alone cannot fix this: git-style rules cannot re-include a file
+# whose parent directory is excluded. Each level has to be re-opened in turn.
+android/*
+!android/app/
+android/app/*
+!android/app/src/
+android/app/src/*
+!android/app/src/main/
+android/app/src/main/*
+!android/app/src/main/assets/
 
 # Editor / OS noise and scratch output.
 .git

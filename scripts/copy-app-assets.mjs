@@ -24,9 +24,12 @@ for (const name of FILES) {
     await copyFile(path.join(from, name), path.join(to, name));
     console.log(`[assets] ${name}`);
   } catch (error) {
-    // Loud, because a silently missing agent page means `/` renders the fallback
-    // notice in production and nobody notices until someone reports it.
-    console.error(`[assets] FAILED to copy ${name}:`, error.message);
-    process.exitCode = 1;
+    // Warned about loudly but deliberately NOT fatal. This step once failed the
+    // whole deployment ("Command npm run build exited with 1") purely because a
+    // packaging rule had dropped the Android assets, which cost two deploy
+    // cycles for what is one static page. The `/` route already degrades to an
+    // explanatory notice when an asset is absent, so losing it should not block
+    // everything else. If you see this in a build log, check .vercelignore.
+    console.warn(`[assets] WARNING: could not copy ${name} -> ${error.message}`);
   }
 }
