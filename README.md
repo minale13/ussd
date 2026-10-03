@@ -76,28 +76,31 @@ single serverless function. Two caveats are deliberate:
   response-duration limits, so live updates may drop. Deploy to Render for the
   full console.
 
-The single route in `vercel.json` sends **every** path to the function:
+The single rewrite in `vercel.json` sends **every** path to the function:
 
 ```json
-"routes": [{ "src": "/(.*)", "dest": "api/index.js" }]
+"functions": {
+  "api/index.js": {
+    "memory": 1024,
+    "maxDuration": 60,
+    "includeFiles": "dist/**"
+  }
+},
+"rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 ```
 
-Two details are load-bearing, and both have bitten this deployment:
-
-- `routes[].src` is parsed with the **path-to-regexp** grammar, not as a
-  JavaScript regex. A negative lookahead such as `/((?!api/index$).*)` is not
-  valid there: it matches nothing at all, every request falls through to
-  Vercel's edge, and the whole deployment answers `404 NOT_FOUND`. `/(.*)` is
-  the canonical catch-all.
-- `routes` is required, not `rewrites`. Vercel rejects `rewrites` alongside
-  `builds`, so declaring the runtime explicitly means routing through `routes`.
+`rewrites[].source` is parsed with the **path-to-regexp** grammar, not as a
+JavaScript regex. A negative lookahead such as `/((?!api/index$).*)` is not
+valid there: it matches nothing at all, every request falls through to Vercel's
+edge, and the whole deployment answers `404 NOT_FOUND`. `/(.*)` is the canonical
+catch-all.
 
 The route must cover the API paths as well as the console. An earlier version
 excluded the whole `/api/` prefix, which left `/api/webhooks/payment`, every
 `/api/admin/*` call and the phones' `/api/withdrawals/pending` poll unrouted, so
 they 404ed with no error anywhere else.
 
-#### Why `dist/` must ship
+#### Why `dist/` must ship, and why `functions` not `builds`
 
 `api/index.js` imports `../dist/src/app.js`, which `npm run build` compiles with
 `tsc`. `.gitignore` excludes `dist/` — correct for git, but Vercel honours
@@ -105,15 +108,27 @@ they 404ed with no error anywhere else.
 the build machine and then dropped before bundling, failing at runtime with
 `Cannot find module '/var/task/dist/src/app.js'`.
 
-`.vercelignore` is what fixes it. That file **replaces** `.gitignore` for a
-deployment, so it simply does not list `dist`, while still excluding `.env` and
-`node_modules`. It also carries an explicit `!dist/**` re-include, which costs
-nothing and keeps the compiled app shipping even on a Vercel build that applies
-both ignore files rather than only this one.
+Two things keep it in:
 
-`includeFiles` is deliberately **not** used: Vercel's `builds[]` schema rejects
-it (`should NOT have additional property 'includeFiles'`), which fails the build
-before anything deploys.
+- `.vercelignore` **replaces** `.gitignore` for a deployment, so it never lists
+  `dist`, while still excluding `.env` and `node_modules`. It also carries an
+  explicit `!dist/**` re-include as a safeguard for a Vercel build that applies
+  both ignore files.
+- `includeFiles: "dist/**"` on the function entry, which tells the function
+  bundler to copy the compiled app into the deployment explicitly rather than
+  relying on import tracing alone.
+
+`includeFiles` is valid **only** under `functions`, never under `builds`.
+Vercel's published schema allows a `builds[]` entry exactly these properties:
+
+```
+config, src, use
+```
+
+and marks it `additionalProperties: false`, so `includeFiles` there fails the
+build with `should NOT have additional property 'includeFiles'`. A `functions[]`
+entry allows `includeFiles`, `excludeFiles`, `memory`, `maxDuration`, `runtime`,
+`regions` and more. That is why the manifest uses `functions` + `rewrites`.
 
 The console HTML is not a static file here: `/` redirects to `/admin` and
 `/admin` is rendered by `src/app.ts` from `DashboardLayout()`. `public/` exists

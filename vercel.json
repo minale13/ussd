@@ -3,25 +3,22 @@
   "framework": null,
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "memory": 1024,
-        "maxDuration": 60
-      }
+  "functions": {
+    "api/index.js": {
+      "memory": 1024,
+      "maxDuration": 60,
+      "includeFiles": "dist/**"
     }
-  ],
+  },
   "env": {
     "NODE_ENV": "production",
     "TRUST_PROXY": "true",
     "OUTBOX_PUBLISHER_ENABLED": "false"
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "api/index.js"
+      "source": "/(.*)",
+      "destination": "/api/index"
     }
   ]
 }
