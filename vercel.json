@@ -10,10 +10,7 @@
       "config": {
         "memory": 1024,
         "maxDuration": 60
-      },
-      "includeFiles": [
-        "dist/**"
-      ]
+      }
     }
   ],
   "env": {

@@ -105,13 +105,15 @@ they 404ed with no error anywhere else.
 the build machine and then dropped before bundling, failing at runtime with
 `Cannot find module '/var/task/dist/src/app.js'`.
 
-Two mechanisms keep it in, and both are needed:
+`.vercelignore` is what fixes it. That file **replaces** `.gitignore` for a
+deployment, so it simply does not list `dist`, while still excluding `.env` and
+`node_modules`. It also carries an explicit `!dist/**` re-include, which costs
+nothing and keeps the compiled app shipping even on a Vercel build that applies
+both ignore files rather than only this one.
 
-- `.vercelignore`, which **replaces** `.gitignore` for a deployment. It
-  deliberately does not list `dist`, while still excluding `.env` and
-  `node_modules`.
-- `includeFiles: ["dist/**"]` on the build entry, so the compiled app is
-  bundled regardless of ignore-rule ordering.
+`includeFiles` is deliberately **not** used: Vercel's `builds[]` schema rejects
+it (`should NOT have additional property 'includeFiles'`), which fails the build
+before anything deploys.
 
 The console HTML is not a static file here: `/` redirects to `/admin` and
 `/admin` is rendered by `src/app.ts` from `DashboardLayout()`. `public/` exists

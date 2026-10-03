@@ -9,10 +9,12 @@
 #
 #   Cannot find module '/var/task/dist/src/app.js'
 #
-# dist is therefore deliberately absent from the list below. Do not add it.
-#
-# Everything excluded here is either reinstalled by `npm ci` at build time or is
-# local-only. Secrets stay excluded: .env must never be uploaded.
+# dist is therefore deliberately absent from the exclusions below. Do not add it.
+# The explicit re-include is belt and braces: if a Vercel version applied
+# .gitignore *as well as* this file, the `dist/` rule in there would otherwise
+# strip the compiled app again. Negation wins under git-style precedence, so
+# dist ships either way.
+!dist/**
 
 # Reinstalled by npm ci; uploading it only slows the build.
 node_modules
