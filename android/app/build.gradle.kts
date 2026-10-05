@@ -86,13 +86,10 @@ if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = tr
 // out of the repository, which is what a legitimate release signature is.
 // ---------------------------------------------------------------------------
 
-/** A resolved signing coordinate: the keystore file plus the credentials for it. */
-data class SigningKey(val file: File, val storePassword: String, val keyAlias: String, val keyPassword: String)
-
-val sharedKeystore = file("keystore.jks")
-
-/** Reads a credential from the environment first, then android/local.properties. */
-fun secret(envName: String, propName: String): String? {
+/**
+ * Reads a credential from the environment first, then android/local.properties.
+ */
+fun readSecret(envName: String, propName: String): String? {
     val fromEnv = System.getenv(envName)
     if (!fromEnv.isNullOrBlank()) return fromEnv
     val props = rootProject.file("local.properties")
@@ -104,30 +101,50 @@ fun secret(envName: String, propName: String): String? {
     return null
 }
 
-val envKeystore  = System.getenv("APK_KEYSTORE_PATH")
-val localKeyFile = rootProject.file("release-keystore.jks")
-val localStore   = secret("RELEASE_STORE_PASSWORD", "RELEASE_STORE_PASSWORD")
+// Every path and credential below is declared with inferred types on purpose.
+// Gradle's Kotlin DSL default imports cover java.lang.* but not java.io.*, so
+// naming java.io.File explicitly here would not compile. Inference keeps the
+// script free of imports it does not need.
+val devKeystoreFile = file("keystore.jks")
+val localKeystoreFile = rootProject.file("release-keystore.jks")
+val uploadKeystorePath = System.getenv("APK_KEYSTORE_PATH")
+val uploadKeystoreFile = if (!uploadKeystorePath.isNullOrBlank()) file(uploadKeystorePath) else null
+val localStorePassword = readSecret("RELEASE_STORE_PASSWORD", "RELEASE_STORE_PASSWORD")
 
-val (signingName, signingKey) = when {
-    // 1. Environment-supplied upload key: takes precedence and is never committed.
-    !envKeystore.isNullOrBlank() && File(envKeystore).isFile -> "upload" to SigningKey(
-        File(envKeystore),
-        secret("APK_KEYSTORE_PASSWORD", "APK_STORE_PASSWORD") ?: error("APK_KEYSTORE_PASSWORD is required when APK_KEYSTORE_PATH is set"),
-        secret("APK_KEY_ALIAS", "APK_KEY_ALIAS") ?: error("APK_KEY_ALIAS is required when APK_KEYSTORE_PATH is set"),
-        secret("APK_KEY_PASSWORD", "APK_KEY_PASSWORD") ?: error("APK_KEY_PASSWORD is required when APK_KEYSTORE_PATH is set"),
-    )
-    // 2. Local release key, created by scripts/make-release-keystore.mjs.
-    localKeyFile.isFile && localStore != null -> "local-release" to SigningKey(
-        localKeyFile,
-        localStore,
-        secret("RELEASE_KEY_ALIAS", "RELEASE_KEY_ALIAS") ?: "release",
-        secret("RELEASE_KEY_PASSWORD", "RELEASE_KEY_PASSWORD") ?: localStore,
-    )
-    // 3. Development fallback so a fresh clone still produces a debug APK.
-    else -> "shared-dev" to SigningKey(sharedKeystore, "android", "androiddebugkey", "android")
+val resolvedKeystoreFile = when {
+    uploadKeystoreFile != null && uploadKeystoreFile.isFile -> uploadKeystoreFile
+    localKeystoreFile.isFile && localStorePassword != null -> localKeystoreFile
+    else -> devKeystoreFile
 }
 
-logger.lifecycle("[signing] release + debug will be signed with the '$signingName' keystore")
+var signingLabel = "development (committed keystore)"
+var resolvedStorePassword: String? = null
+var resolvedKeyAlias: String? = null
+var resolvedKeyPassword: String? = null
+
+if (uploadKeystoreFile != null && uploadKeystoreFile.isFile) {
+    // 1. A Play upload key supplied through the environment. Never committed.
+    signingLabel = "upload key from APK_KEYSTORE_PATH"
+    resolvedStorePassword = readSecret("APK_KEYSTORE_PASSWORD", "APK_STORE_PASSWORD")
+        ?: error("APK_KEYSTORE_PASSWORD is required when APK_KEYSTORE_PATH is set")
+    resolvedKeyAlias = readSecret("APK_KEY_ALIAS", "APK_KEY_ALIAS")
+        ?: error("APK_KEY_ALIAS is required when APK_KEYSTORE_PATH is set")
+    resolvedKeyPassword = readSecret("APK_KEY_PASSWORD", "APK_KEY_PASSWORD")
+        ?: error("APK_KEY_PASSWORD is required when APK_KEYSTORE_PATH is set")
+} else if (localKeystoreFile.isFile && localStorePassword != null) {
+    // 2. A local release key created by scripts/make-release-keystore.mjs.
+    signingLabel = "local release key"
+    resolvedStorePassword = localStorePassword
+    resolvedKeyAlias = readSecret("RELEASE_KEY_ALIAS", "RELEASE_KEY_ALIAS") ?: "release"
+    resolvedKeyPassword = readSecret("RELEASE_KEY_PASSWORD", "RELEASE_KEY_PASSWORD") ?: localStorePassword
+} else {
+    // 3. The committed development key, so a fresh clone still builds.
+    resolvedStorePassword = "android"
+    resolvedKeyAlias = "androiddebugkey"
+    resolvedKeyPassword = "android"
+}
+
+logger.lifecycle("[signing] using the $signingLabel keystore")
 
 android {
     namespace = "com.example.ussdgateway"
@@ -148,12 +165,17 @@ android {
 
     signingConfigs {
         // One resolved config, whatever keystore won the priority check above.
-        create("release") {
-            storeFile = signingKey.file
-            storeType = if (signingKey.file.extension.equals("jks", true)) "JKS" else "PKCS12"
-            storePassword = signingKey.storePassword
-            keyAlias = signingKey.keyAlias
-            keyPassword = signingKey.keyPassword
+        create("gateway") {
+            storeFile = resolvedKeystoreFile
+            storeType = if (resolvedKeystoreFile.name.endsWith(".jks", true)) "JKS" else "PKCS12"
+            storePassword = resolvedStorePassword
+            keyAlias = resolvedKeyAlias
+            keyPassword = resolvedKeyPassword
+            // v1 and v2 signature schemes: a device that only understands v1
+            // refuses the install otherwise, which reads as "Play Protect
+            // blocked this app" to anyone sideloading it.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
@@ -162,11 +184,11 @@ android {
         // auto-generated debug key is exactly what Play Protect flags on a
         // sideload, and an unsigned release APK cannot be installed at all.
         getByName("debug") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("gateway")
             isMinifyEnabled = false
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("gateway")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
