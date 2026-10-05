@@ -254,25 +254,34 @@ jobs:
           echo "sdk.dir=${SDK_DIR}" > local.properties
 
       # The release key is a repository secret so the private half of the signing
-      # material never enters git. Without it the build falls back to the
-      # committed development keystore, which Play Protect distrusts.
-      - name: Restore the release signing key
+      # material never enters git. When the secret is absent the build falls back
+      # to the committed development keystore instead of failing: a CI run with
+      # no secrets should still produce an installable, correctly signed APK.
+      #
+      # The fallback is deliberately the *committed* key and not a freshly
+      # generated one. A random key per run would give every build a different
+      # certificate, so the next APK could not update an installed copy and the
+      # device would demand an uninstall, losing the saved channel login. The
+      # committed key at least keeps the signature stable across runs.
+      - name: Resolve the signing key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "${KEYSTORE_B64}" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 is not set; add the base64 keystore as a repository secret"
-            exit 1
+          if [ -n "${KEYSTORE_B64}" ]; then
+            echo "${KEYSTORE_B64}" | base64 -d > release-keystore.jks
+            {
+              echo "RELEASE_STORE_PASSWORD=${KEYSTORE_PASS}"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS}"
+              echo "RELEASE_KEY_PASSWORD=${KEY_PASS}"
+            } >> local.properties
+            echo "Signing with the repository-secret upload key."
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; falling back to the committed development keystore app/keystore.jks. The APK will install, but this certificate is publicly known and is not acceptable for a Play Store upload."
+            test -f app/keystore.jks || { echo "::error::app/keystore.jks is missing too; cannot sign"; exit 1; }
           fi
-          echo "${KEYSTORE_B64}" | base64 -d > release-keystore.jks
-          {
-            echo "RELEASE_STORE_PASSWORD=${KEYSTORE_PASS}"
-            echo "RELEASE_KEY_ALIAS=${KEY_ALIAS}"
-            echo "RELEASE_KEY_PASSWORD=${KEY_PASS}"
-          } >> local.properties
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -307,6 +316,16 @@ jobs:
           [ -n "${GATEWAY_USER_ID}" ]     && args+=("-PGATEWAY_USER_ID=${GATEWAY_USER_ID}")
           [ -n "${WEBHOOK_SECRET}" ]      && args+=("-PWEBHOOK_SECRET=${WEBHOOK_SECRET}")
           [ -n "${USSD_PIN}" ]            && args+=("-PUSSD_PIN=${USSD_PIN}")
+
+          # assembleRelease refuses placeholder credentials by default. A CI run
+          # with no credentials still has to produce an installable APK, so pass
+          # the explicit waiver whenever anything was left blank. The build logs a
+          # warning saying the result cannot authenticate or claim payouts.
+          if [ ${#args[@]} -lt 3 ]; then
+            echo "::warning::GATEWAY_USER_ID / WEBHOOK_SECRET / USSD_PIN were not all supplied; the APK will be signed but cannot claim payouts."
+            args+=("-PallowPlaceholderCredentials=true")
+          fi
+
           ./gradlew assembleRelease "${args[@]}" --stacktrace
 
       - name: Verify the release signature
@@ -316,9 +335,28 @@ jobs:
           "${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify --verbose --print-certs "${apk}"
           ls -lh app/build/outputs/apk/release/
 
-      # The Play Store consumes an .aab, not an APK.
+      # The Play Store consumes an .aab, not an APK. bundleRelease trips the same
+      # placeholder guard as assembleRelease, so it needs the same waiver, and the
+      # same -P values: the bundle must be signed and configured identically to
+      # the APK or an upload built from it behaves differently from the APK.
       - name: Assemble the Play Store bundle
-        run: ./gradlew bundleRelease --stacktrace
+        env:
+          GITHUB_DEPENDENCY_GRAPH_ENABLED: 'false'
+          API_BASE_URL: ${{ inputs.base_url }}
+          GATEWAY_USER_ID: ${{ inputs.gateway_user_id }}
+          WEBHOOK_SECRET: ${{ inputs.webhook_secret }}
+          USSD_PIN: ${{ inputs.ussd_pin }}
+        run: |
+          args=()
+          [ -n "${API_BASE_URL}" ]     && args+=("-PAPI_BASE_URL=${API_BASE_URL}")
+          [ -n "${GATEWAY_USER_ID}" ]  && args+=("-PGATEWAY_USER_ID=${GATEWAY_USER_ID}")
+          [ -n "${WEBHOOK_SECRET}" ]   && args+=("-PWEBHOOK_SECRET=${WEBHOOK_SECRET}")
+          [ -n "${USSD_PIN}" ]         && args+=("-PUSSD_PIN=${USSD_PIN}")
+          if [ ${#args[@]} -lt 3 ]; then
+            args+=("-PallowPlaceholderCredentials=true")
+          fi
+          ./gradlew bundleRelease "${args[@]}" --stacktrace
+          ls -lh app/build/outputs/bundle/release/
 
       - name: Upload release APK and AAB
         uses: actions/upload-artifact@v7

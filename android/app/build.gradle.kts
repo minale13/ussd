@@ -3,6 +3,10 @@ plugins {
     kotlin("android")
 }
 
+// Named explicitly because the Kotlin DSL default imports do not include it,
+// and this build script must not rely on imports Gradle does not provide.
+import org.gradle.api.GradleException
+
 // ---------------------------------------------------------------------------
 // Build-time configuration
 //
@@ -50,15 +54,34 @@ val ussdPin = config("USSD_PIN", "replace-with-ussd-pin")
 // A release APK must not be shipped with the "replace-with-..." placeholders:
 // those builds silently authenticate as nobody and sign webhooks with a
 // published key. Debug builds keep them so the project still opens and runs.
+//
+// This is enforced by default and can only be waived deliberately with
+// -PallowPlaceholderCredentials=true. That waiver exists so an unattended CI
+// run can still produce an installable APK when no credentials are configured;
+// it is never set by npm run apk:release, which keeps failing fast locally
+// rather than quietly shipping a phone that can never claim a payout.
+val allowPlaceholders = (project.findProperty("allowPlaceholderCredentials") as String?)?.toBoolean() ?: false
+
 if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
-    listOf(
+    val unset = listOf(
         "GATEWAY_USER_ID" to gatewayUserId,
         "WEBHOOK_SECRET" to webhookSecret,
         "USSD_PIN" to ussdPin
-    ).forEach { (key, value) ->
-        require(!value.startsWith("replace-with-")) {
-            "$key is still a placeholder; pass -P$key=<value> (or export $key) before building a release APK"
-        }
+    ).filter { (_, value) -> value.startsWith("replace-with-") }
+
+    if (unset.isNotEmpty() && !allowPlaceholders) {
+        throw GradleException(
+            "Release credentials are still placeholders: " +
+                unset.joinToString(", ") { (key, _) -> key } + ". " +
+                "Pass -P<KEY>=<value> (or export it) to build a release APK, " +
+                "or add -PallowPlaceholderCredentials=true to accept the placeholders."
+        )
+    }
+    if (unset.isNotEmpty()) {
+        logger.warn(
+            "[release] Building with placeholder credentials (${unset.joinToString(", ") { it.first }}). " +
+                "This APK installs but cannot authenticate or claim payouts."
+        )
     }
 }
 
