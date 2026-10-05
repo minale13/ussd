@@ -12,6 +12,7 @@ api/assets/
 coverage/
 
 # Android / Gradle build output
+tools/
 android/.gradle/
 android/build/
 android/app/build/

@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
         if (!accessibilityEnabled()) {
             showOnboarding()
         } else if (dashboardShown) {
+            resumeGatewayIfNeeded()
             pushState()
         } else {
             showDashboard()
@@ -161,11 +162,7 @@ class MainActivity : ComponentActivity() {
      * straight to the active view instead of asking for another tap.
      */
     private fun resumeGatewayIfNeeded() {
-        if (UssdPollingService.running) return
-        if (!Credentials.isConfigured(this)) return
-        if (!UssdPollingService.shouldResume(this)) return
-        ActivityLog.add(this, "info", "Gateway resumed with the saved login")
-        UssdPollingService.start(this)
+        UssdPollingService.startIfReady(this)
     }
 
     /**

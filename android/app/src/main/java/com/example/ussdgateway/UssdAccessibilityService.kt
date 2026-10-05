@@ -22,6 +22,11 @@ class UssdAccessibilityService : AccessibilityService() {
     private val client = OkHttpClient()
     private var step = 0
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        UssdPollingService.startIfReady(this)
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.eventType !in setOf(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)) return
         val text = (event.text ?: emptyList<CharSequence>()).joinToString(" ") { it.toString() }.trim()

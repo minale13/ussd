@@ -232,11 +232,13 @@ so the form survives a reload; **the PIN is deliberately never written to
 `localStorage`**, and `getState()` returns only the channel and phone, so the
 WebView cannot read the PIN back.
 
-The gateway stays armed on its own. `UssdPollingService` sets `gateway_active`
-while it runs and clears it on an explicit stop, so a process the system
-reclaims is restarted by `START_STICKY`, a reboot is picked up by `BootReceiver`
-(`RECEIVE_BOOT_COMPLETED`), and opening the app resumes polling whenever a saved
-login exists — no tap on "Start gateway" is needed after onboarding.
+The gateway starts polling automatically once Accessibility Service, the saved
+channel login and required phone permissions are ready. Enabling Accessibility
+Service starts it immediately; opening the app also starts it when setup is
+already complete. `UssdPollingService` sets `gateway_active` while it runs and
+clears it on an explicit stop, so a process the system reclaims is restarted by
+`START_STICKY`, and a reboot resumes a gateway that was left running through
+`BootReceiver` (`RECEIVE_BOOT_COMPLETED`).
 
 Phone numbers are normalised identically on both sides (`+251…`, `251…`, `9…` and
 `0…` all resolve to the local 10 digit form; only `07`/`09` prefixes are

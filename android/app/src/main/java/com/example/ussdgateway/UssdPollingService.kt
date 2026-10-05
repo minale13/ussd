@@ -40,13 +40,20 @@ class UssdPollingService : Service() {
         setActive(this, true)
         val prefs = getSharedPreferences("ussd", MODE_PRIVATE)
         val simSlot = prefs.getInt("sim_slot", 0)
-        getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("ussd", "USSD Gateway", NotificationManager.IMPORTANCE_LOW))
+        val channel = NotificationChannel("ussd", "USSD Gateway", NotificationManager.IMPORTANCE_LOW).apply {
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         startForeground(
             1,
             NotificationCompat.Builder(this, "ussd")
                 .setContentTitle("USSD Gateway running")
                 .setContentText("Polling for withdrawals · SIM ${simSlot + 1}")
                 .setSmallIcon(android.R.drawable.stat_sys_phone_call)
+                .setPriority(Notification.PRIORITY_MIN)
+                .setSilent(true)
                 .setOngoing(true)
                 .build()
         )
@@ -175,6 +182,25 @@ class UssdPollingService : Service() {
             }.onFailure {
                 ActivityLog.add(context, "error", "Gateway could not start: ${it.message ?: "background start blocked"}")
             }
+        }
+
+        /**
+         * Starts polling after accessibility, login, and dangerous phone
+         * permissions are ready. The pending-withdrawal endpoint also claims
+         * work, so do not poll until the phone can safely execute it.
+         */
+        fun startIfReady(context: Context) {
+            if (running || !Credentials.isConfigured(context)) return
+            val requiredPermissions = listOf(
+                android.Manifest.permission.CALL_PHONE,
+                android.Manifest.permission.READ_PHONE_STATE,
+            )
+            if (requiredPermissions.any {
+                    ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+            ) return
+
+            start(context)
         }
 
         private fun setActive(context: Context, active: Boolean) {
