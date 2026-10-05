@@ -6,7 +6,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Typeface
-import android.net.Uri
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -25,8 +25,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Dark fintech dashboard host. A three-step permission gate (accessibility, phone
- * calls, SIM access) guards a WebView that renders assets/dashboard.html; the page
+ * Dark fintech dashboard host. The dangerous permissions (phone calls, SIM state)
+ * are asked for with Android's own Allow / Deny dialogs the moment the app starts,
+ * and the only onboarding screen left is one card pointing at the accessibility
+ * service - the grant that lives in system settings and can never be requested
+ * from code. Behind it sits a WebView that renders assets/dashboard.html; the page
  * talks back through [DashboardBridge] to read live state and start/stop the gateway.
  * Saving an onboarding login starts the polling listener in the same bridge call, and
  * a gateway that was left running is resumed when the app opens again.
@@ -37,16 +40,19 @@ class MainActivity : ComponentActivity() {
     private var webView: WebView? = null
     private var dashboardShown = false
 
-    // Fires the standard system request so Android shows its own Allow / Deny dialog
-    // over this screen instead of sending users to Settings.
+    // One launch asks for every dangerous permission that is still missing and
+    // Android walks them with its own Allow / Deny dialogs.
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { showPermissions() }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { route() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = NAVY
         window.navigationBarColor = NAVY
-        if (permissionsGranted()) showDashboard() else showPermissions()
+        // Draw first so the system dialogs land on top of real content: the setup
+        // card on a first launch, the dashboard once the service is already on.
+        route()
+        requestRuntimePermissions()
     }
 
     override fun onResume() {
@@ -54,16 +60,16 @@ class MainActivity : ComponentActivity() {
         route()
     }
 
-    // Keeps both screens in sync with reality: returning from Settings re-renders the
-    // checklist with fresh button states, and a revoked permission drops us back to it.
+    // Keeps both screens in sync with reality: coming back from Settings with the
+    // accessibility service switched on opens the dashboard, a revoked grant drops
+    // back to the setup card, and a refresh while it is up just re-reads state.
     private fun route() {
-        if (!permissionsGranted()) {
-            dashboardShown = false
-            showPermissions()
+        if (!accessibilityEnabled()) {
+            showOnboarding()
         } else if (dashboardShown) {
             pushState()
         } else {
-            showPermissions()
+            showDashboard()
         }
     }
 
@@ -79,55 +85,58 @@ class MainActivity : ComponentActivity() {
         return content
     }
 
-    private fun showPermissions() {
+    /**
+     * Accessibility is the only permission that needs an in-app guide because
+     * Android exposes its grant solely from system settings.
+     */
+    private fun showOnboarding() {
         dashboardShown = false
-        val view = base("Required permissions")
-        view.addView(TextView(this).apply { text = "USSD automation needs the accessibility service, phone-call access and SIM access."; textSize = 16f; setTextColor(TEXT_MUTED); setPadding(0, 24, 0, 0) })
+        val view = base("One-time setup")
+        val density = resources.displayMetrics.density
+        val pad = (20 * density).toInt()
 
-        view.addView(instruction("1. Turn on accessibility", "Android only allows this from system settings. Tap the button below, then in the Accessibility screen find \"USSD Gateway\" and switch it on."))
-        view.addView(permissionButton(if (accessibilityEnabled()) "Accessibility enabled" else "ENABLE ACCESSIBILITY", accessibilityEnabled()) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
-
-        view.addView(instruction("2. Allow phone calls", "Tap the button below and choose Allow in the Android permission dialog that pops up at the bottom of the screen."))
-        view.addView(permissionButton(if (callPermissionGranted()) "Phone permission granted" else "ALLOW PHONE CALLS", callPermissionGranted()) { requestPermission(Manifest.permission.CALL_PHONE, "call_requested") })
-
-        view.addView(instruction("3. Read SIM cards", "Lets the dashboard list the SIM slots (SIM 1 / SIM 2) and route each payout through the card you pick. Tap below and choose Allow."))
-        view.addView(permissionButton(if (simPermissionGranted()) "SIM access granted" else "ALLOW SIM ACCESS", simPermissionGranted()) { requestPermission(Manifest.permission.READ_PHONE_STATE, "sim_requested") })
-
-        if (!callPermissionGranted() && dialogBlocked(Manifest.permission.CALL_PHONE, "call_requested")) {
-            view.addView(blockedHint("Android is currently blocking the phone-call dialog for this app. If tapping the button does nothing, open Settings > Apps > USSD Gateway > Permissions > Phone, allow it, then come back."))
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            background = GradientDrawable().apply {
+                cornerRadius = 18f * density
+                setColor(CARD_FILL)
+                setStroke((1 * density).toInt().coerceAtLeast(1), CARD_BORDER)
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-        if (!simPermissionGranted() && dialogBlocked(Manifest.permission.READ_PHONE_STATE, "sim_requested")) {
-            view.addView(blockedHint("Android is currently blocking the SIM permission dialog. Open Settings > Apps > USSD Gateway > Permissions > Phone, allow it, then come back."))
+        card.addView(TextView(this).apply {
+            text = "Enable accessibility"
+            textSize = 17f
+            setTextColor(TEXT_PRIMARY)
+            setTypeface(null, Typeface.BOLD)
+        })
+        card.addView(TextView(this).apply {
+            text = "Turn on USSD Gateway in Accessibility settings. The dashboard opens when you return."
+            textSize = 14f
+            setTextColor(TEXT_MUTED)
+            setPadding(0, (8 * density).toInt(), 0, (16 * density).toInt())
+        })
+        card.addView(Button(this).apply {
+            text = "OPEN ACCESSIBILITY SETTINGS"
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+        })
+        view.addView(card)
+    }
+
+    /**
+     * Asks for every dangerous permission still missing, once, with the standard
+     * system dialogs as soon as the activity starts. Missing permissions are
+     * requested again on a later app launch if the user denied them.
+     */
+    private fun requestRuntimePermissions() {
+        val missing = REQUIRED_RUNTIME_PERMISSIONS.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-
-        view.addView(Button(this).apply { text = "Continue"; isEnabled = permissionsGranted(); setOnClickListener { showDashboard() } })
-    }
-
-    private fun instruction(title: String, body: String) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(0, 32, 0, 0)
-        addView(TextView(this@MainActivity).apply { text = title; textSize = 17f; setTextColor(TEXT_PRIMARY); setTypeface(null, Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) })
-        addView(TextView(this@MainActivity).apply { text = body; textSize = 14f; setTextColor(TEXT_MUTED); setPadding(0, 8, 0, 0); layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) })
-    }
-
-    private fun blockedHint(text: String) = TextView(this).apply { this.text = text; textSize = 13f; setTextColor(ACCENT_AMBER); setPadding(0, 16, 0, 0) }
-
-    private fun permissionButton(label: String, done: Boolean, onClick: () -> Unit) = Button(this).apply {
-        text = label
-        isEnabled = !done
-        setOnClickListener { onClick() }
-    }
-
-    private fun requestPermission(permission: String, requestedKey: String) {
-        preferences.edit().putBoolean(requestedKey, true).apply()
-        permissionLauncher.launch(permission)
-    }
-
-    // The system dialog is the normal path; it stops appearing only after the user
-    // picked "Don't ask again", which is worth pointing out when that happens.
-    private fun dialogBlocked(permission: String, requestedKey: String): Boolean {
-        if (!preferences.getBoolean(requestedKey, false)) return false
-        return !shouldShowRequestPermissionRationale(permission)
+        if (missing.isEmpty()) return
+        permissionLauncher.launch(missing.toTypedArray())
     }
 
     // ---------------------------------------------------------------- dashboard
@@ -298,22 +307,10 @@ class MainActivity : ComponentActivity() {
             pushState()
         }
 
-        @JavascriptInterface
-        fun openAccessibilitySettings() {
-            runOnUiThread { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        }
-
-        @JavascriptInterface
-        fun openAppSettings() {
-            runOnUiThread {
-                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
-            }
-        }
     }
 
     // -------------------------------------------------------------------- shared
 
-    private fun permissionsGranted() = accessibilityEnabled() && callPermissionGranted() && simPermissionGranted()
     private fun callPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
     private fun simPermissionGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
     private fun channelLabel(channel: String) = if (channel == "CBE") "CBE" else "Telebirr"
@@ -328,6 +325,16 @@ class MainActivity : ComponentActivity() {
         val NAVY = 0xFF0A1228.toInt()
         val TEXT_PRIMARY = 0xFFFFFFFF.toInt()
         val TEXT_MUTED = 0xFF94A3B8.toInt()
-        val ACCENT_AMBER = 0xFFFBBF24.toInt()
+        // Setup card: navy a shade lighter than the background, hairline border.
+        val CARD_FILL = 0xFF111C36.toInt()
+        val CARD_BORDER = 0x33FFFFFF.toInt()
+
+        // The dangerous permissions the gateway cannot work without; everything
+        // else in the manifest is install-time and needs no dialog. Requested
+        // together from onCreate so Android walks its own Allow / Deny flow.
+        val REQUIRED_RUNTIME_PERMISSIONS = listOf(
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_PHONE_STATE
+        )
     }
 }

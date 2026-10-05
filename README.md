@@ -310,10 +310,13 @@ installed copy in place without losing the saved channel login.
 > accessibility service plus the ability to place calls. Use `apk:keygen` for
 > anything you distribute, and back the keystore up: Play cannot restore it.
 
-**Permissions.** Declared and requested one at a time from the in-app checklist:
-`CALL_PHONE` (places the USSD payout call), `READ_PHONE_STATE` (SIM slots and
-carrier), `FOREGROUND_SERVICE`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`,
-`ACCESS_NETWORK_STATE`, `WAKE_LOCK`. Accessibility is granted from system settings.
+**Permissions.** `CALL_PHONE` (places the USSD payout call) and `READ_PHONE_STATE`
+(SIM slots and carrier) are dangerous permissions: the app requests both at
+startup with the standard system Allow / Deny dialogs. The install-time ones —
+`FOREGROUND_SERVICE`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `ACCESS_NETWORK_STATE`,
+`WAKE_LOCK` — need no prompt. Accessibility cannot be requested from code, so the
+only onboarding screen is a single card that points the user at system settings
+for it; the dashboard appears as soon as the service is enabled.
 
 There is deliberately **no `READ_SMS` / `RECEIVE_SMS` / `SEND_SMS`**: this app never
 reads or sends SMS. Requesting permissions it does not use is the most common cause

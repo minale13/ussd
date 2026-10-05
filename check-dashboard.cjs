@@ -15,6 +15,9 @@ for (const forbidden of ["active-sub", "Waiting for payout requests"]) {
 for (const required of ["onboarding", "onboard-pick", "onboard-login", "login-form", "login-phone", "login-pin", "settings-credentials"]) {
   if (!html.includes(required)) throw new Error(`missing ${required}`);
 }
+for (const obsolete of ["perm-banner", "perm-a11y", "perm-sys", 'call("openAppSettings")']) {
+  if (html.includes(obsolete)) throw new Error(`in-app permission guidance returned: ${obsolete}`);
+}
 for (const channel of ['data-channel-pick="TELEBIRR"', 'data-channel-pick="CBE"']) {
   if (!html.includes(channel)) throw new Error(`missing channel tile ${channel}`);
 }

@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      Runtime (dangerous) permissions, requested one at a time from MainActivity
-      after an explicit tap, never at launch. Each maps to a real call site:
+      Runtime (dangerous) permissions. MainActivity requests whatever is missing
+      at startup with one RequestMultiplePermissions call, so Android shows its
+      own sequential Allow / Deny dialogs before the user does anything else:
 
         CALL_PHONE       UssdPollingService places the USSD payout call.
         READ_PHONE_STATE Sims.kt lists SIM 1 / SIM 2 and reads the carrier name.
@@ -11,7 +12,8 @@
       deliberately no READ_SMS / RECEIVE_SMS / SEND_SMS: this app never touches
       SMS. Declaring permissions it does not use is the single most common reason
       Play rejects an upload, and it makes Play Protect more suspicious of a
-      sideload rather than less.
+      sideload rather than less. Accessibility cannot be requested from code, so
+      it is the one grant the onboarding card walks the user to system settings for.
     -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />

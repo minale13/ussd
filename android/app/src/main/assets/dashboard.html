@@ -613,21 +613,6 @@
       </button>
       <p id="action-hint" class="mt-2 hidden text-center text-[12px] font-medium text-amber-300"></p>
     </section>
-    <!-- permission banner (shown only when something is missing) -->
-    <section id="perm-banner" class="mt-4 hidden rounded-3xl border border-amber-400/30 bg-amber-400/10 p-4">
-      <div class="flex items-start gap-3">
-        <span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-400/20 text-[13px] font-bold text-amber-300">!</span>
-        <div class="min-w-0 flex-1">
-          <p class="text-[13px] font-semibold text-amber-200">Permissions missing</p>
-          <p id="perm-detail" class="mt-1 text-xs leading-relaxed text-amber-200/80">Accessibility drives the USSD menus; phone and SIM access place the call on your chosen card.</p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button id="perm-a11y" class="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-amber-100">Accessibility</button>
-            <button id="perm-sys" class="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-amber-100">App permissions</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- activity feed -->
     <section class="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
       <div class="flex items-center justify-between">
@@ -1114,18 +1099,6 @@
           hint.classList.add("hidden");
         }
 
-        // permission banner
-        var banner = document.getElementById("perm-banner");
-        if (ready) {
-          banner.classList.add("hidden");
-        } else {
-          banner.classList.remove("hidden");
-          document.getElementById("perm-a11y").classList.toggle("hidden", a11y);
-          document.getElementById("perm-detail").textContent = a11y
-            ? "Android must allow phone and SIM access before payouts can run."
-            : "Accessibility drives the USSD menus; phone and SIM access place the call on your chosen card.";
-        }
-
         // Active mode is intentionally reduced to the listening indicator. The
         // settings gear and status dot remain available for controls and state.
         document.getElementById("brand-block").classList.toggle("hidden", running);
@@ -1198,9 +1171,6 @@
       for (var k = 0; k < channelInputs.length; k++) {
         channelInputs[k].addEventListener("change", function (ev) { call("setChannel", ev.target.value); });
       }
-      document.getElementById("perm-a11y").addEventListener("click", function () { call("openAccessibilitySettings"); });
-      document.getElementById("perm-sys").addEventListener("click", function () { call("openAppSettings"); });
-
       // ---- onboarding events ----------------------------------------------
       var brandTiles = onboardRoot.querySelectorAll("[data-channel-pick]");
       for (var t = 0; t < brandTiles.length; t++) {
