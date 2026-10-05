@@ -17,6 +17,7 @@
     "test:load": "tsx scripts/load-test.ts",
     "apk:debug": "node scripts/build-apk.mjs",
     "apk:release": "node scripts/build-apk.mjs --release",
+    "apk:keygen": "node scripts/make-release-keystore.mjs",
     "ui:dev": "node scripts/ui-preview.js",
     "admin:ui": "npm run build && node scripts/admin-preview-start.mjs",
     "admin:preview": "npm run build && node scripts/admin-preview.mjs"

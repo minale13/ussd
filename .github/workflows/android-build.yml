@@ -6,6 +6,28 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Which APK to build'
+        type: choice
+        default: debug
+        options: [debug, release]
+      base_url:
+        description: 'Backend URL (blank = production https://ussd-six.vercel.app/)'
+        type: string
+        default: ''
+      gateway_user_id:
+        description: 'GATEWAY_USER_ID (must equal ADMIN_WITHDRAWAL_USER_ID on the server)'
+        type: string
+        default: ''
+      webhook_secret:
+        description: 'WEBHOOK_SECRET (must equal PAYMENT_WEBHOOK_SECRET on the server)'
+        type: string
+        default: ''
+      ussd_pin:
+        description: 'USSD_PIN fallback'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -140,13 +162,27 @@ jobs:
 
       - name: Verify the APK signature
         run: |
-          # The private key never leaves android/app/keystore.jks, so compare the
-          # certificate digests: matching digests prove the APK carries the fixed
-          # signature and installs over an existing copy of the app.
+          # The private key never leaves the keystore, so compare the certificate
+          # digests: matching digests prove the APK carries the expected signature
+          # and installs over an existing copy of the app.
+          #
+          # Which keystore that is depends on the environment: a release build may
+          # be signed with a private local key or a Play upload key supplied via
+          # APK_KEYSTORE_PATH, neither of which CI can see. In those cases there is
+          # nothing to compare against, so verify the APK is signed at all rather
+          # than fail on a key this job was never given.
           apk=app/build/outputs/apk/debug/app-debug.apk
           test -f "${apk}" || { echo "::error::${apk} was not produced"; exit 1; }
 
           apksigner="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
+          "${apksigner}" verify --verbose --print-certs "${apk}"
+
+          # This job runs in android/, so the local release key sits beside it.
+          if [ -n "${APK_KEYSTORE_PATH:-}" ] || [ -f release-keystore.jks ]; then
+            echo "A private signing key is in use; skipping the committed-key digest comparison."
+            exit 0
+          fi
+
           keystore_sha256="$(keytool -list -v -keystore "${KEYSTORE_FILE}" -storepass "${KEYSTORE_PASSWORD}" -alias "${KEYSTORE_ALIAS}" \
             | sed -n 's/.*SHA256: //p' | head -n 1 | tr -d ': ' | tr 'A-Z' 'a-z')"
           apk_sha256="$("${apksigner}" verify --print-certs "${apk}" \
@@ -163,8 +199,6 @@ jobs:
             exit 1
           fi
 
-          "${apksigner}" verify --verbose "${apk}"
-
       - name: Show build output
         run: ls -lh app/build/outputs/apk/debug/
 
@@ -175,3 +209,119 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Signed release APK + Play Store bundle.
+  #
+  # Manual only: a release needs GATEWAY_USER_ID / WEBHOOK_SECRET / USSD_PIN,
+  # and those are real secrets, so they must never be triggered on every push.
+  # The signing key comes from the ANDROID_KEYSTORE_BASE64 repository secret
+  # (base64 of the keystore) and is written to disk only for this job.
+  # ---------------------------------------------------------------------------
+  build-release:
+    name: Build signed release APK
+    if: github.event_name == 'workflow_dispatch' && inputs.variant == 'release'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    env:
+      GRADLE_VERSION: '8.11.1'
+      ANDROID_COMPILE_SDK: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install Android platform and build tools
+        run: sdkmanager --install "platforms;android-${ANDROID_COMPILE_SDK}" "build-tools;${ANDROID_BUILD_TOOLS}"
+
+      - name: Point the build at the Android SDK
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=${SDK_DIR}" > local.properties
+
+      # The release key is a repository secret so the private half of the signing
+      # material never enters git. Without it the build falls back to the
+      # committed development keystore, which Play Protect distrusts.
+      - name: Restore the release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set; add the base64 keystore as a repository secret"
+            exit 1
+          fi
+          echo "${KEYSTORE_B64}" | base64 -d > release-keystore.jks
+          {
+            echo "RELEASE_STORE_PASSWORD=${KEYSTORE_PASS}"
+            echo "RELEASE_KEY_ALIAS=${KEY_ALIAS}"
+            echo "RELEASE_KEY_PASSWORD=${KEY_PASS}"
+          } >> local.properties
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Generate the Gradle wrapper
+        if: ( ! -f gradlew ) || ( ! -f gradle/wrapper/gradle-wrapper.jar )
+        run: |
+          scratch="$(mktemp -d)"
+          : > "$scratch/settings.gradle"
+          (cd "$scratch" && gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin) > "$scratch/wrapper.log" 2>&1 || {
+            echo "::error::Gradle wrapper generation failed"; tail -60 "$scratch/wrapper.log"; exit 1; }
+          mkdir -p gradle/wrapper
+          cp "$scratch/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/gradle-wrapper.jar
+          cp "$scratch/gradle/wrapper/gradle-wrapper.properties" gradle/wrapper/gradle-wrapper.properties
+          cp "$scratch/gradlew" "$scratch/gradlew.bat" .
+
+      - name: Assemble release APK
+        env:
+          GITHUB_DEPENDENCY_GRAPH_ENABLED: 'false'
+          # Blank inputs mean "use the compiled-in production URL".
+          API_BASE_URL: ${{ inputs.base_url }}
+          GATEWAY_USER_ID: ${{ inputs.gateway_user_id }}
+          WEBHOOK_SECRET: ${{ inputs.webhook_secret }}
+          USSD_PIN: ${{ inputs.ussd_pin }}
+        run: |
+          args=()
+          [ -n "${API_BASE_URL}" ]        && args+=("-PAPI_BASE_URL=${API_BASE_URL}")
+          [ -n "${GATEWAY_USER_ID}" ]     && args+=("-PGATEWAY_USER_ID=${GATEWAY_USER_ID}")
+          [ -n "${WEBHOOK_SECRET}" ]      && args+=("-PWEBHOOK_SECRET=${WEBHOOK_SECRET}")
+          [ -n "${USSD_PIN}" ]            && args+=("-PUSSD_PIN=${USSD_PIN}")
+          ./gradlew assembleRelease "${args[@]}" --stacktrace
+
+      - name: Verify the release signature
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -f "${apk}" || { echo "::error::${apk} was not produced"; exit 1; }
+          "${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify --verbose --print-certs "${apk}"
+          ls -lh app/build/outputs/apk/release/
+
+      # The Play Store consumes an .aab, not an APK.
+      - name: Assemble the Play Store bundle
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Upload release APK and AAB
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-release
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 90

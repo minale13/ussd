@@ -266,24 +266,64 @@ no per-phone ledger is kept on the device.
 
 ### Build the Android APK
 
-The backend URL is a build-time setting, not a runtime one, so the same project
-produces a debug APK pointed at a laptop and a release APK pointed at the
-deployed web admin without editing a line of source.
-`android/app/build.gradle.kts` resolves each value from a Gradle property first,
-then the matching environment variable, then a built-in default.
+The backend URL is a build-time setting, not a runtime one. `https://ussd-six.vercel.app`
+is compiled in as the default, so an installed app connects to production with **no
+server prompt anywhere in the UI** — the onboarding form only ever asks for the
+payment channel, phone number and PIN. `android/app/build.gradle.kts` resolves each
+value from a Gradle property first, then the matching environment variable, then the
+built-in default.
 
 | Property | Default | Meaning |
 | --- | --- | --- |
-| `API_BASE_URL` | `http://10.0.2.2:3000/` | backend root; a trailing `/` is added if you omit it |
+| `API_BASE_URL` | `https://ussd-six.vercel.app/` | production backend; a trailing `/` is added if you omit it |
 | `GATEWAY_USER_ID` | placeholder | must equal `ADMIN_WITHDRAWAL_USER_ID` on the server |
 | `WEBHOOK_SECRET` | placeholder | must equal `PAYMENT_WEBHOOK_SECRET` on the server |
 | `USSD_PREFIX` | `*806` | Telebirr USSD menu prefix |
 | `USSD_PIN` | placeholder | fallback PIN when none is saved on the phone |
 
 ```text
-npm run apk:debug
-npm run apk:release -- --url https://withdrawal.example.com
+npm run apk:debug                                    # debug APK, production backend
+npm run apk:release                                  # signed release APK, no flags needed
+npm run apk:release -- --url https://staging.example.com
 ```
+
+#### Signing, and why Play Protect flags the wrong build
+
+The build resolves one of three keystores, highest priority first:
+
+1. **A Play upload key** from the environment — `APK_KEYSTORE_PATH`,
+   `APK_KEYSTORE_PASSWORD`, `APK_KEY_ALIAS`, `APK_KEY_PASSWORD`. The only option
+   that can enrol in **Play App Signing**.
+2. **A local release key** at `android/release-keystore.jks`, credentials in
+   `android/local.properties`. Create it once with `npm run apk:keygen`; the script
+   generates a 4096-bit RSA key and writes the passwords for you. Never committed.
+3. **The committed development key** at `android/app/keystore.jks`, whose password
+   is the string `android` in a public repository. A fresh clone can still build,
+   and `npm run apk:release` prints a warning when this fallback is used.
+
+Debug and release are signed with the same resolved key, so a new build replaces an
+installed copy in place without losing the saved channel login.
+
+> A keystore in a public repository is a real weakness, not a theoretical one. The
+> password is published, so anyone can mint a certificate with the same identity and
+> ship an "update" to a phone that already trusts it — and this app holds an
+> accessibility service plus the ability to place calls. Use `apk:keygen` for
+> anything you distribute, and back the keystore up: Play cannot restore it.
+
+**Permissions.** Declared and requested one at a time from the in-app checklist:
+`CALL_PHONE` (places the USSD payout call), `READ_PHONE_STATE` (SIM slots and
+carrier), `FOREGROUND_SERVICE`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`,
+`ACCESS_NETWORK_STATE`, `WAKE_LOCK`. Accessibility is granted from system settings.
+
+There is deliberately **no `READ_SMS` / `RECEIVE_SMS` / `SEND_SMS`**: this app never
+reads or sends SMS. Requesting permissions it does not use is the most common cause
+of a Play rejection and makes a sideload *more* suspicious, not less. The
+accessibility service already sets `canRetrieveWindowContent="true"`, which is what
+Play requires for reading the USSD menu.
+
+The release build is minified (`R8` + resource shrinking). `proguard-rules.pro`
+keeps the Retrofit/Moshi types, the manifest-declared services, and the
+`@JavascriptInterface` bridge, which the WebView reaches only by name.
 
 `scripts/build-apk.mjs` also generates the Gradle wrapper when it is missing (the
 wrapper is not committed; CI generates it the same way), so no separate Gradle

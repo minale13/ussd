@@ -1,7 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Runtime (dangerous) permissions, requested one at a time from MainActivity
+      after an explicit tap, never at launch. Each maps to a real call site:
+
+        CALL_PHONE       UssdPollingService places the USSD payout call.
+        READ_PHONE_STATE Sims.kt lists SIM 1 / SIM 2 and reads the carrier name.
+
+      READ_PHONE_STATE doubles as the SIM-slot permission on API 29+. There is
+      deliberately no READ_SMS / RECEIVE_SMS / SEND_SMS: this app never touches
+      SMS. Declaring permissions it does not use is the single most common reason
+      Play rejects an upload, and it makes Play Protect more suspicious of a
+      sideload rather than less.
+    -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
-    <!-- Lists the SIM 1 / SIM 2 slots (SubscriptionManager) so payouts can be pinned
-         to a chosen card; requested at runtime as step 3 of the permission flow. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -9,14 +21,39 @@
          boot broadcast itself is protected and only sent by the system. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the dashboard read the gateway's live connection state. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Wakes the polling service when the payout queue is due to be checked. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      The phone makes calls, so declare the hardware as required: Play Store
+      filters the listing to devices that can actually run a USSD gateway rather
+      than offering it to tablets with no telephony radio.
+    -->
+    <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <uses-feature android:name="android.hardware.telephony.gsm" android:required="true" />
+
+    <!--
+      The accessibility service reads the USSD menu to complete a configured
+      payout. Play requires this declaration to be justified in the console, and
+      the service must be able to retrieve window content to parse the menu.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="USSD Gateway"
+        android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:theme="@style/Theme.App">
+        android:theme="@style/Theme.App"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

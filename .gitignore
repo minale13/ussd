@@ -22,8 +22,11 @@ android/captures/
 *.aab
 *.keystore
 *.jks
-# The fixed signing key is committed on purpose so local and CI builds share
-# one signature and an installed APK can be updated in place.
+# A release signing key must never be committed. *.jks / *.keystore are ignored
+# above and NOT un-ignored here, so android/release-keystore.jks stays private.
+# Only the development key is tracked, so a fresh clone can still build a debug
+# APK; a release APK should be signed with a key you generated yourself (see
+# scripts/make-release-keystore.mjs) or a Play upload key.
 !android/app/keystore.jks
 
 # OS / editor / temp

@@ -120,6 +120,22 @@ if (variantArg === 'release') {
     console.error('\nNote: WEBHOOK_SECRET here must match PAYMENT_WEBHOOK_SECRET on the server.');
     process.exit(1);
   }
+
+  // A release APK that falls back to the committed development keystore is signed
+  // with a public password, which is precisely what Play Protect distrusts. Warn
+  // loudly rather than block: the build is still valid, it is just not the key a
+  // published app should be signed with.
+  const uploadKey = process.env.APK_KEYSTORE_PATH;
+  const localReleaseKey = path.join(ANDROID, 'release-keystore.jks');
+  if (!uploadKey && !existsSync(localReleaseKey)) {
+    console.warn(
+      '\n[apk] WARNING: no release keystore found.\n' +
+      '      Falling back to android/app/keystore.jks, whose password ("android") is\n' +
+      '      public. That signature is what Play Protect flags on a sideload, and it\n' +
+      '      cannot enrol in Play App Signing.\n' +
+      '      Run "npm run apk:keygen" once to create a private release key.\n'
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +217,7 @@ for (const [key, value] of Object.entries(config)) gradleArgs.push(`-P${key}=${v
 
 console.log(`[apk] building the ${variantArg} APK`);
 if (config.API_BASE_URL) console.log(`[apk]   backend: ${config.API_BASE_URL}`);
-else console.log('[apk]   backend: default (http://10.0.2.2:3000/) - pass --url to target a deployment');
+else console.log('[apk]   backend: production (https://ussd-six.vercel.app/) - pass --url to target another host');
 
 const status = run(isWindows ? gradlew : './gradlew', gradleArgs, { cwd: ANDROID });
 if (status !== 0) {
