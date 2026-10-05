@@ -6,9 +6,10 @@ import type { FastifyInstance } from 'fastify';
  *
  * Two properties are pinned here:
  *
- * 1. `/` and `/admin` are different documents. The root serves the Android App
- *    Agent UI shipped in the APK assets; `/admin` serves the console. `/` used
- *    to 302 into `/admin`, so there was no way to reach one without the other.
+ * 1. `/`, `/app` and `/admin` are three different documents. `/` and `/app`
+ *    serve the Android App Agent UI shipped in the APK assets; `/admin` serves
+ *    the console. `/` used to 302 into `/admin` and `/app` was not routed at
+ *    all, so there was no way to reach one without the other.
  * 2. `/api/admin/login` decides on the credentials alone. It touches no
  *    datastore, so a database outage cannot turn into a rejected password -
  *    the failure that made a correct key look broken.
@@ -38,23 +39,32 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('app surfaces', () => {
-  it('serves the App Agent UI at the root instead of redirecting to the console', async () => {
-    const res = await app.inject({ method: 'GET', url: '/' });
-    expect(res.statusCode).toBe(200);
-    expect(res.headers.location, 'the root must not redirect into the console').toBeUndefined();
-    expect(res.headers['content-type']).toContain('text/html');
+  /**
+   * Both the root and /app are the standalone Android App Agent UI. Neither may
+   * redirect into the console: a 302 into /admin (or /admin/login) is the exact
+   * bug this pins, and it is invisible to a browser that follows redirects, so
+   * the Location header has to be asserted on explicitly.
+   */
+  for (const path of ['/', '/app', '/app/']) {
+    it(`serves the App Agent UI at ${path} instead of redirecting to the console`, async () => {
+      const res = await app.inject({ method: 'GET', url: path });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers.location, `${path} must not redirect into the console`).toBeUndefined();
+      expect(res.headers['content-type']).toContain('text/html');
 
-    // The agent document has its own device-onboarding form, so "login-form"
-    // does not identify it. The console sign-in button and bottom nav do: neither
-    // may appear on the root, and the green status orb must.
-    expect(res.body, 'console sign-in button must not leak into the agent page').not.toContain('id="unlock"');
-    expect(res.body, 'console nav must not leak into the agent page').not.toContain('bottom-nav');
-    expect(res.body, 'agent page must carry its status indicator').toContain('pill-pulse');
-  });
+      // The agent document has its own device-onboarding form, so "login-form"
+      // does not identify it. The console sign-in button and bottom nav do:
+      // neither may appear on the client UI, and the green status orb must.
+      expect(res.body, `console sign-in button must not leak into ${path}`).not.toContain('id="unlock"');
+      expect(res.body, `console nav must not leak into ${path}`).not.toContain('bottom-nav');
+      expect(res.body, `agent page at ${path} must carry its status indicator`).toContain('pill-pulse');
+    });
+  }
 
   it('serves the console login at /admin and only there', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin' });
     expect(res.statusCode).toBe(200);
+    expect(res.headers.location, '/admin must not redirect either').toBeUndefined();
     expect(res.body).toContain('id="login-form"');
     expect(res.body).toContain('id="unlock"');
     expect(res.body).toContain('bottom-nav');
@@ -63,6 +73,19 @@ describe('app surfaces', () => {
   it('serves the stylesheet the agent page links to', async () => {
     const res = await app.inject({ method: 'GET', url: '/tailwind.css' });
     expect(res.statusCode).toBe(200);
+  });
+
+  it('keeps /admin screens on the console and the agent UI off them', async () => {
+    // The console is multi-screen, the agent UI is one document. Neither family
+    // may answer for a path belonging to the other.
+    const consoleScreen = await app.inject({ method: 'GET', url: '/admin/transactions' });
+    expect(consoleScreen.statusCode).toBe(200);
+    expect(consoleScreen.body).toContain('id="unlock"');
+
+    for (const path of ['/', '/app']) {
+      const res = await app.inject({ method: 'GET', url: path });
+      expect(res.body, `${path} must not serve a console screen`).not.toContain('id="unlock"');
+    }
   });
 });
 

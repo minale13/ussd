@@ -51,11 +51,20 @@ export function buildApp() {
     // endpoint reports 200 and lists exactly which variables are absent.
     missing: envResolution.missing
   }));
-  // The bare host is the App Agent UI that ships in the APK. It used to redirect
-  // to /admin, which meant the two surfaces could never be told apart and the
-  // console login was the first thing anyone saw at the root. They are separate
-  // documents now; /admin is the only route that serves the dashboard.
+  // The Android App Agent UI that ships in the APK is served directly by this
+  // API, on both `/` and `/app`. Both used to be wired to a 302 into /admin,
+  // which meant the two surfaces could never be told apart and the console
+  // sign-in was the first thing anyone saw. Neither path may redirect now: each
+  // answers 200 with the agent document, and /admin is the only route that
+  // serves the dashboard.
+  //
+  // /app is the explicit, self-describing name for the client UI and is what the
+  // preview harness mounts, so it is a first-class route rather than a redirect
+  // to `/`. Fastify treats a trailing slash as a distinct path, so it is
+  // registered too instead of 404ing on a typo.
   app.get('/', appAgentUi);
+  app.get('/app', appAgentUi);
+  app.get('/app/', appAgentUi);
   app.get('/tailwind.css', appAgentStyles);
   app.get('/admin', adminDashboard);
   // Every screen of the app is a real, bookmarkable URL. They all serve the same

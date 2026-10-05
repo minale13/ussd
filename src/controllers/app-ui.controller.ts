@@ -4,7 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Serves the Android App Agent UI at the bare host.
+ * Serves the Android App Agent UI at `/` and at `/app`.
+ *
+ * This is the standalone client surface. It is mounted on both paths, and
+ * neither is a redirect into the console: the whole point is that the Android
+ * App UI and the Admin Dashboard are two different documents that can be opened
+ * without ever passing through each other.
  *
  * The view is the very same document the APK ships in its WebView assets
  * (`android/app/src/main/assets/`), so the browser and the handset show one

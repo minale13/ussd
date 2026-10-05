@@ -126,8 +126,11 @@ marked `additionalProperties: false`, so anything else there fails the build wit
 `should NOT have additional property '...'`. A `functions[]` entry allows
 `memory`, `maxDuration`, `runtime`, `regions`, `includeFiles` and more.
 
-The console HTML is not a static file here: `/` redirects to `/admin` and
-`/admin` is rendered by `src/app.ts` from `DashboardLayout()`. `public/` exists
+Neither the App Agent UI nor the console is a static file here. `/` and `/app`
+are both served directly by `src/app.ts` as the Android App Agent UI — neither
+redirects into the console — and `/admin` is rendered from `DashboardLayout()`.
+The two surfaces are separate documents on purpose, so opening the client UI
+can never land an operator on the admin sign-in and vice versa. `public/` exists
 only so a static-output check can never fail, and no route uses a
 `handle: filesystem`, so it can never shadow a real route.
 
