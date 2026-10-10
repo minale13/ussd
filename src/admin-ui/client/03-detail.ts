@@ -48,6 +48,61 @@ export const CLIENT_DETAIL = `
         ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M5.7 5.7l12.6 12.6"/></svg><span>Block device</span>'
         : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg><span>Unblock device</span>';
     }
+
+    renderBankToggles(device);
+  }
+
+  /**
+   * The set of banks a device currently has switched on.
+   *
+   * Mirrors the server's `resolveEnabledBanks`: a device configured with an
+   * explicit `enabled_banks` list is limited to exactly that set; a device that
+   * predates the toggles falls back to its single legacy `channel` (the `CBE`
+   * label read as CBE Birr) so an un-migrated phone keeps working. An empty
+   * result means "not configured yet", which the switches show as all-off until
+   * an operator makes a choice.
+   */
+  function enabledBanksOf(device) {
+    var raw = device && device.enabled_banks;
+    var list = raw;
+    if (typeof list === 'string') {
+      try { list = JSON.parse(list); } catch (error) { list = null; }
+    }
+    if (list && list.length) {
+      return list.map(function (code) {
+        return String(code).toUpperCase() === 'CBE' ? 'CBEBIRR' : String(code).toUpperCase();
+      });
+    }
+    if (device && device.channel) {
+      return [String(device.channel).toUpperCase() === 'CBE' ? 'CBEBIRR' : String(device.channel).toUpperCase()];
+    }
+    return [];
+  }
+
+  /**
+   * Renders the per-device bank switches into the device detail screen.
+   *
+   * Each row is a real iOS-style switch (role="switch", aria-checked) so it is
+   * reachable by keyboard and announced by a screen reader. A bank with no USSD
+   * flow yet is rendered but disabled, with a short note, so an operator can see
+   * it exists without being able to enable something the handset cannot run.
+   */
+  function renderBankToggles(device) {
+    var host = byId('bank-toggles');
+    if (!host) return;
+    var on = enabledBanksOf(device);
+    host.innerHTML = BANKS.map(function (bank) {
+      var checked = on.indexOf(bank.code) !== -1;
+      var disabled = !bank.executable;
+      return '<div class="row bank-row">' +
+        '<span class="row-label"><span>' + escapeHtml(bank.label) + '</span>' +
+          (disabled ? '<span class="row-note">No USSD flow yet</span>' : '') + '</span>' +
+        '<button class="switch bank-switch" type="button" role="switch" data-bank="' + bank.code + '"' +
+          ' aria-checked="' + (checked ? 'true' : 'false') + '"' + (disabled ? ' disabled' : '') +
+          ' aria-label="' + escapeHtml(bank.label) + ' payouts"></button>' +
+      '</div>';
+    }).join('');
+    setText('bank-count', on.length + (on.length === 1 ? ' on' : ' on'));
   }
 
   /**

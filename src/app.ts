@@ -89,6 +89,7 @@ export function buildApp() {
   app.get('/api/admin/activity', { preHandler: authenticateAdmin }, admin.activity);
   app.get('/api/admin/settings', { preHandler: authenticateAdmin }, admin.settings);
   app.patch('/api/admin/devices/:deviceId', { preHandler: authenticateAdmin }, admin.updateDevice);
+  app.patch('/api/admin/devices/:deviceId/banks', { preHandler: authenticateAdmin }, admin.updateDeviceBanks);
   app.post('/api/admin/devices/:deviceId/restart', { preHandler: authenticateAdmin }, admin.restartDevice);
   app.post('/api/admin/withdrawals', { preHandler: authenticateAdmin }, admin.manualWithdrawal);
   app.post('/api/withdrawals', { preHandler: authenticate }, withdrawal.create);

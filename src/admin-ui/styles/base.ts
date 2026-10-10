@@ -17,7 +17,7 @@ body{
 body::before{
   content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
-    radial-gradient(760px 460px at 8% -4%,rgba(0,229,195,.16),transparent 62%),
+    radial-gradient(760px 460px at 8% -4%,rgba(168,85,247,.16),transparent 62%),
     radial-gradient(680px 420px at 100% 2%,rgba(22,131,255,.15),transparent 60%),
     radial-gradient(900px 620px at 50% 112%,rgba(0,224,143,.10),transparent 66%);
 }
@@ -27,7 +27,7 @@ button{cursor:pointer;background:none;border:0}
 a{color:inherit;text-decoration:none}
 ul{margin:0;padding:0;list-style:none}
 svg{display:block}
-::selection{background:rgba(0,229,195,.30)}
+::selection{background:rgba(168,85,247,.30)}
 :focus-visible{outline:2px solid var(--neon);outline-offset:2px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .ico{flex:none}
@@ -76,12 +76,12 @@ svg{display:block}
 .btn-primary{
   position:relative;overflow:hidden;
   background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  border-color:transparent;color:#012B26;font-weight:700;
-  box-shadow:0 8px 24px rgba(0,229,195,.30);
+  border-color:transparent;color:#2E1065;font-weight:700;
+  box-shadow:0 8px 24px rgba(168,85,247,.30);
 }
 .btn-primary:hover:not(:disabled){
-  background:linear-gradient(135deg,#17F0D0,#3CF0A8);
-  box-shadow:0 10px 30px rgba(0,229,195,.42);
+  background:linear-gradient(135deg,#B378F9,#C9A0FC);
+  box-shadow:0 10px 30px rgba(168,85,247,.42);
 }
 /* Sheen sweep on the primary action. */
 .btn-primary::before{
@@ -103,7 +103,7 @@ svg{display:block}
   font-size:12.5px;font-weight:600;color:var(--neon);
   transition:background var(--t-fast) var(--ease);
 }
-.link-more:hover{background:rgba(0,229,195,.10)}
+.link-more:hover{background:rgba(168,85,247,.10)}
 .link-more .ico{transition:transform var(--t-fast) var(--ease)}
 .link-more:hover .ico{transform:translateX(3px)}
 
@@ -125,7 +125,7 @@ svg{display:block}
 
 /* Channel dot, shared by the payout form and the transaction cards. */
 .channel-dot{width:8px;height:8px;border-radius:50%;flex:none}
-.channel-dot.telebirr{background:var(--neon);box-shadow:0 0 8px rgba(0,229,195,.7)}
+.channel-dot.telebirr{background:var(--neon);box-shadow:0 0 8px rgba(168,85,247,.7)}
 .channel-dot.cbe{background:var(--blue);box-shadow:0 0 8px rgba(22,131,255,.7)}
 .channel-dot.device{background:var(--neon-green);box-shadow:0 0 8px rgba(0,224,143,.7)}
 .channel-dot.auto{background:var(--text-3)}
@@ -135,8 +135,8 @@ svg{display:block}
 .count-chip{
   flex:none;height:26px;padding:0 11px;display:inline-flex;align-items:center;
   border-radius:var(--r-pill);font:700 11px/1 var(--font);
-  color:#BDF5E4;background:rgba(0,229,195,.10);
-  box-shadow:inset 0 0 0 1px rgba(0,229,195,.24);
+  color:#E9D5FF;background:rgba(168,85,247,.10);
+  box-shadow:inset 0 0 0 1px rgba(168,85,247,.24);
   font-variant-numeric:tabular-nums;
 }
 

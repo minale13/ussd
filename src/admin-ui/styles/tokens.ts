@@ -17,10 +17,12 @@ export const TOKENS = `
   --card:#0A1E3C;
   --card-2:#0C2749;
 
-  /* Neon accents. Turquoise leads; green is the "settled/positive" sibling. */
-  --neon:#00E5C3;
-  --neon-dim:#0FB9A0;
-  --neon-green:#00E08F;
+  /* Brand accents. A bank-inspired violet leads (Commercial Bank of Ethiopia /
+     CBE Birr); a lighter violet is its gradient sibling. Semantic success keeps
+     a distinct green so "settled / online / credit" still reads as positive. */
+  --neon:#A855F7;
+  --neon-dim:#8B5CF6;
+  --neon-green:#C084FC;
   --blue:#1683FF;
   --purple:#7C3AED;
   --amber:#FFB020;
@@ -37,9 +39,9 @@ export const TOKENS = `
   --text-3:#63799A;
 
   /* Hairline borders, deliberately low alpha so cards read as glowing glass. */
-  --line:rgba(0,229,195,.18);
-  --line-soft:rgba(120,190,255,.12);
-  --line-strong:rgba(0,229,195,.40);
+  --line:rgba(168,85,247,.20);
+  --line-soft:rgba(150,120,255,.14);
+  --line-strong:rgba(168,85,247,.44);
 
   /* Radii. Large and round: the reference design is a soft, glowing card system. */
   --r-sm:12px;
@@ -54,9 +56,9 @@ export const TOKENS = `
   --t-slow:320ms;
   --ease:cubic-bezier(.4,0,.2,1);
 
-  /* Neon glow. Every raised surface carries a soft turquoise halo. */
-  --glow:0 0 0 1px rgba(0,229,195,.20), 0 10px 30px rgba(0,229,195,.13);
-  --glow-strong:0 0 0 1px rgba(0,229,195,.45), 0 14px 42px rgba(0,229,195,.26);
+  /* Neon glow. Every raised surface carries a soft violet halo. */
+  --glow:0 0 0 1px rgba(168,85,247,.22), 0 10px 30px rgba(168,85,247,.14);
+  --glow-strong:0 0 0 1px rgba(168,85,247,.48), 0 14px 42px rgba(168,85,247,.28);
   --shadow:0 18px 44px rgba(1,7,18,.55);
   --shadow-sm:0 8px 22px rgba(1,7,18,.42);
 

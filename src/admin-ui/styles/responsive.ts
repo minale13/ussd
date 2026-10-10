@@ -49,7 +49,7 @@ export const RESPONSIVE = `
     top:50%;left:0;transform:translateY(-50%);
     width:3px;height:22px;border-radius:0 3px 3px 0;
   }
-  .nav-item.is-active{background:rgba(0,229,195,.09)}
+  .nav-item.is-active{background:rgba(168,85,247,.09)}
   .shell-main{flex:1;min-width:0;display:flex;flex-direction:column}
   .content{padding:24px 30px 48px}
   .summary{grid-template-columns:repeat(4,minmax(0,1fr))}

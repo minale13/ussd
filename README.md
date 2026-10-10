@@ -219,18 +219,31 @@ Credentials are stored in the app-private `SharedPreferences("ussd")` via
 | Key | Contents |
 | --- | --- |
 | `login_phone` | Normalised local number, `09XXXXXXXX` |
-| `login_pin` | The wallet PIN |
+| `login_pin_enc` | The wallet PIN encrypted with a non-exportable Android Keystore AES-256-GCM key (`base64(iv):base64(ciphertext)`); the legacy plaintext `login_pin` is removed on first read |
 | `login_saved_at` | Epoch millis of the last save |
 | `channel` | `TELEBIRR` or `CBE` |
 | `gateway_active` | Set while the gateway is meant to be running |
 
-`Credentials.save()` re-validates on the native side — the WebView is not a trust
-boundary. `UssdAccessibilityService` reads the stored PIN when it answers a USSD
-PIN prompt, falling back to the build-time `USSD_PIN` only when nothing is saved.
-The page mirrors the channel and phone to `localStorage` under `ussd.credentials`
-so the form survives a reload; **the PIN is deliberately never written to
-`localStorage`**, and `getState()` returns only the channel and phone, so the
-WebView cannot read the PIN back.
+`Credentials.save()` re-validates on the native side and encrypts the PIN
+before it reaches the file — the WebView is not a trust boundary. There is
+deliberately **no server-side copy** (this project has no Supabase; the backend
+never sees the wallet PIN). `UssdAccessibilityService` decrypts it when a USSD
+window asks for a PIN, falling back to the build-time `USSD_PIN` only when
+nothing is saved. The page mirrors the channel and phone to `localStorage`
+under `ussd.credentials` so the form survives a reload; **the PIN is
+deliberately never written to `localStorage`**, and `getState()` returns only
+the channel and phone, so the WebView cannot read the PIN back.
+
+A payout session on screen is answered without anyone touching the phone:
+`UssdAccessibilityService` only ever types into windows that are the system
+USSD overlay (`com.android.phone` and telephony hosts — an "Enter your PIN"
+dialog in any other app is left alone), reads the prompt from the dialog's node
+tree (PIN prompts win and are matched at any step), injects the saved PIN — or
+the payout destination/amount — with `ACTION_SET_TEXT`, and presses the dialog's
+Send/OK button. A 1.5 second settle window between answers stops the event
+bursts a USSD dialog produces (including the ones the fill itself causes) from
+retyping or re-sending while the carrier is still processing; the completion /
+failure webhook reporting is unchanged.
 
 The gateway starts polling automatically once Accessibility Service, the saved
 channel login and required phone permissions are ready. Enabling Accessibility

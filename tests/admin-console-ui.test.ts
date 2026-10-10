@@ -31,9 +31,9 @@ const OVERVIEW = {
 };
 
 const FLEET = [
-  { device_id: 'DEV-001', phone_model: 'Tecno Spark 8', channel: 'TELEBIRR', carrier: 'Ethio Telecom', online: true, active_status: true, battery_level: 82, network_type: '4G', last_seen_at: ago(5_000), last_ip: '10.0.0.5' },
-  { device_id: 'DEV-002', phone_model: 'Infinix Hot 30', channel: 'CBE', carrier: 'CBE', online: false, active_status: true, battery_level: 12, network_type: '3G', last_seen_at: ago(600_000), last_ip: '10.0.0.6' },
-  { device_id: 'DEV-003', phone_model: 'Samsung A15', channel: 'TELEBIRR', carrier: 'Safaricom', online: false, active_status: false, battery_level: null, network_type: null, last_seen_at: ago(900_000), last_ip: null }
+  { device_id: 'DEV-001', phone_model: 'Tecno Spark 8', channel: 'TELEBIRR', carrier: 'Ethio Telecom', online: true, active_status: true, battery_level: 82, network_type: '4G', last_seen_at: ago(5_000), last_ip: '10.0.0.5', enabled_banks: ['TELEBIRR', 'CBEBIRR'] },
+  { device_id: 'DEV-002', phone_model: 'Infinix Hot 30', channel: 'CBE', carrier: 'CBE', online: false, active_status: true, battery_level: 12, network_type: '3G', last_seen_at: ago(600_000), last_ip: '10.0.0.6', enabled_banks: null },
+  { device_id: 'DEV-003', phone_model: 'Samsung A15', channel: 'TELEBIRR', carrier: 'Safaricom', online: false, active_status: false, battery_level: null, network_type: null, last_seen_at: ago(900_000), last_ip: null, enabled_banks: null }
 ];
 
 const LEDGER = [
@@ -335,6 +335,40 @@ describe('admin console data binding', () => {
     expect(ui.visibleScreens()).toEqual(['view-device']);
     expect(ui.text('detail-id')).toBe('DEV-001');
     expect(ui.text('detail-network-type')).toBe('4G');
+  }, DOM_TIMEOUT);
+
+  it('renders one bank switch per supported bank and reflects the device set', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    ui.all('#devices .dev-row')[0]!.dispatchEvent(new ui.window.Event('click', { bubbles: true }));
+    await ui.wait(60);
+    const switches = ui.all('#bank-toggles .bank-switch');
+    // Every supported bank gets a switch.
+    expect(switches.map((s) => s.getAttribute('data-bank'))).toEqual(['TELEBIRR', 'CBEBIRR', 'AWASH', 'DASHEN', 'ABYSSINIA']);
+    // DEV-001 has TELEBIRR and CBEBIRR on.
+    expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
+    expect(switches[1]!.getAttribute('aria-checked')).toBe('true');
+    expect(switches[2]!.getAttribute('aria-checked')).toBe('false');
+    // A bank with no USSD flow yet is rendered but disabled.
+    expect((switches[2] as HTMLButtonElement).disabled).toBe(true);
+    expect(ui.text('bank-count')).toBe('2 on');
+  }, DOM_TIMEOUT);
+
+  it('posts the recomputed bank set when a switch is flipped', async () => {
+    const ui = await boot();
+    await unlock(ui);
+    ui.document.querySelector<HTMLElement>('.nav-item[data-route="devices"]')?.click();
+    await ui.wait(60);
+    ui.all('#devices .dev-row')[0]!.dispatchEvent(new ui.window.Event('click', { bubbles: true }));
+    await ui.wait(60);
+    // Turn Telebirr off: the whole set is recomputed and posted, not just a flag.
+    ui.document.querySelector<HTMLElement>('#bank-toggles .bank-switch[data-bank="TELEBIRR"]')!.click();
+    await ui.wait(60);
+    const call = ui.calls.find((c) => c.path === '/api/admin/devices/DEV-001/banks' && c.method === 'PATCH');
+    expect(call).toBeTruthy();
+    expect(call!.body).toEqual({ banks: ['CBEBIRR'] });
   }, DOM_TIMEOUT);
 });
 

@@ -35,9 +35,9 @@ export const SHELL = `
 body:not(.is-booting) .splash{animation:splash-fade var(--t-slow) var(--ease) forwards;pointer-events:none}
 .splash-mark{
   width:92px;height:92px;border-radius:28px;display:grid;place-items:center;
-  color:#022B26;
+  color:#2E1065;
   background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  box-shadow:0 0 0 1px rgba(0,229,195,.4),0 18px 50px rgba(0,229,195,.34);
+  box-shadow:0 0 0 1px rgba(168,85,247,.4),0 18px 50px rgba(168,85,247,.34);
 }
 .splash-name{font:800 21px/1.25 var(--font-display);letter-spacing:-.01em}
 .splash-tag{margin-top:6px;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-2)}
@@ -49,7 +49,7 @@ body:not(.is-booting) .splash{animation:splash-fade var(--t-slow) var(--ease) fo
   background:rgba(255,255,255,.04);border:1px solid var(--line-soft);
 }
 .splash-status .dot{width:8px;height:8px;border-radius:50%;background:var(--text-3)}
-.splash-status.is-online{color:#BDF5E0;border-color:rgba(0,229,195,.3);background:rgba(0,229,195,.08)}
+.splash-status.is-online{color:#E9D5FF;border-color:rgba(168,85,247,.3);background:rgba(168,85,247,.08)}
 .splash-status.is-online .dot{background:var(--neon);animation:pulse-dot 1.6s ease-in-out infinite}
 .splash-status.is-offline{color:#FFD6DE;border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08)}
 .splash-status.is-offline .dot{background:var(--error)}
@@ -78,9 +78,9 @@ body.unlocked .login{display:none}
 }
 .login-mark{
   width:64px;height:64px;border-radius:20px;display:grid;place-items:center;
-  color:#022B26;
+  color:#2E1065;
   background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  box-shadow:0 0 0 1px rgba(0,229,195,.34),0 14px 36px rgba(0,229,195,.28);
+  box-shadow:0 0 0 1px rgba(168,85,247,.34),0 14px 36px rgba(168,85,247,.28);
 }
 .login-head{display:flex;flex-direction:column;gap:8px}
 .login-title{font:800 26px/1.2 var(--font-display);letter-spacing:-.02em}
@@ -118,7 +118,7 @@ body.unlocked .login{display:none}
   transition:color var(--t-fast) var(--ease),background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
-.icon-btn:hover{color:var(--neon);background:rgba(0,229,195,.10);border-color:var(--line-soft)}
+.icon-btn:hover{color:var(--neon);background:rgba(168,85,247,.10);border-color:var(--line-soft)}
 .notif-badge{
   position:absolute;top:4px;right:4px;min-width:17px;height:17px;padding:0 5px;
   display:none;place-items:center;border-radius:9px;
@@ -126,12 +126,12 @@ body.unlocked .login{display:none}
   box-shadow:0 0 0 2px #04101F;font-variant-numeric:tabular-nums;
 }
 
-@keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,229,195,.5)}50%{opacity:.75;box-shadow:0 0 0 6px rgba(0,229,195,0)}}
+@keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(168,85,247,.5)}50%{opacity:.75;box-shadow:0 0 0 6px rgba(168,85,247,0)}}
 /* Live-gateway chip, hidden on the narrowest screens where space is tight. */
 .system-status{
   display:inline-flex;align-items:center;gap:7px;
   height:32px;padding:0 12px;flex:none;
-  border-radius:var(--r-pill);font-size:11.5px;font-weight:600;color:#BDF5E0;
+  border-radius:var(--r-pill);font-size:11.5px;font-weight:600;color:#E9D5FF;
   background:rgba(0,214,143,.09);border:1px solid rgba(0,214,143,.26);
 }
 .system-status .dot{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse-dot 2.4s ease-in-out infinite}
@@ -160,13 +160,13 @@ body.unlocked .login{display:none}
 }
 .nav-item .ico{transition:transform var(--t-mid) var(--ease)}
 .nav-item.is-active{color:var(--neon)}
-.nav-item.is-active .ico{transform:translateY(-1px);filter:drop-shadow(0 0 8px rgba(0,229,195,.55))}
+.nav-item.is-active .ico{transform:translateY(-1px);filter:drop-shadow(0 0 8px rgba(168,85,247,.55))}
 /* Active marker: a short neon bar on the top edge of the tab. */
 .nav-item.is-active::before{
   content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
   width:26px;height:3px;border-radius:0 0 3px 3px;
   background:linear-gradient(90deg,var(--neon),var(--neon-green));
-  box-shadow:0 0 12px rgba(0,229,195,.7);
+  box-shadow:0 0 12px rgba(168,85,247,.7);
 }
 
 /* ---------------- Slide-up sheet (notifications, menus) ---------------- */
@@ -202,9 +202,9 @@ body.unlocked .login{display:none}
 .notif-badge.has-items{display:grid}
 .avatar{
   width:var(--tap);height:var(--tap);flex:none;border-radius:14px;display:grid;place-items:center;
-  font:800 13px/1 var(--font-display);color:#022B26;
+  font:800 13px/1 var(--font-display);color:#2E1065;
   background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  box-shadow:0 6px 18px rgba(0,229,195,.24);
-  box-shadow:0 6px 18px rgba(0,229,195,.24);
+  box-shadow:0 6px 18px rgba(168,85,247,.24);
+  box-shadow:0 6px 18px rgba(168,85,247,.24);
 }
 `;

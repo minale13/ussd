@@ -1,4 +1,5 @@
 import { pool } from '../db.js';
+import { type BankCode, sanitizeEnabledBanks } from '../utils/banks.js';
 
 /**
  * Headline settlement figures for the admin console.
@@ -37,7 +38,7 @@ export const DEVICE_ONLINE_WINDOW_SECONDS = 90;
  * in SQL so the API and the dashboard can never disagree about it.
  */
 const DEVICE_COLUMNS = `device_id, phone_model, active_status, sim_slot, channel, carrier,
-  battery_level, network_type, app_version, last_ip, last_seen_at, created_at, updated_at,
+  battery_level, network_type, app_version, last_ip, last_seen_at, created_at, updated_at, enabled_banks,
   (last_seen_at > now() - make_interval(secs => $1)) AS online`;
 
 /**
@@ -58,6 +59,26 @@ export async function setDeviceStatus(deviceId: string, activeStatus: boolean) {
      WHERE device_id = $1
      RETURNING ${DEVICE_COLUMNS}`,
     [deviceId, activeStatus, DEVICE_ONLINE_WINDOW_SECONDS]
+  );
+  return result.rows[0];
+}
+
+/**
+ * Stores the set of banks a device is authorised to execute payouts for.
+ *
+ * The list is normalised to the canonical [BANKS] order (see `sanitizeEnabledBanks`)
+ * so the stored JSON is stable regardless of the order the toggles were clicked,
+ * and persisted as JSONB. This is the single write path the admin console's
+ * per-device bank switches use; the Android poll never overwrites it because the
+ * claim upsert only seeds `enabled_banks` while the column is still null.
+ */
+export async function setDeviceBanks(deviceId: string, banks: readonly BankCode[]) {
+  const enabled = sanitizeEnabledBanks(banks);
+  const result = await pool.query(
+    `UPDATE mobile_devices SET enabled_banks = $2::jsonb, updated_at = now()
+     WHERE device_id = $1
+     RETURNING ${DEVICE_COLUMNS}`,
+    [deviceId, JSON.stringify(enabled), DEVICE_ONLINE_WINDOW_SECONDS]
   );
   return result.rows[0];
 }

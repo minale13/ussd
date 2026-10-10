@@ -37,11 +37,11 @@ function boot(options: { credentials?: Record<string, unknown> | null } = {}) {
         (...args: unknown[]) => {
           calls.push({ method, args });
           if (method === 'setCredentials') {
-            const [channel, phone, pin] = args as [string, string, string];
+            const [channel, phone] = args as [string, string];
             // Mirrors DashboardBridge.setCredentials: the native save also starts
             // the polling listener, so the snapshot the next refresh reads back is
             // already running and the page opens on its minimal active view.
-            state = { ...state, running: true, channel, credentials: { channel, phone, pin, savedAt: 1 } };
+            state = { ...state, running: true, channel, credentials: { channel, phone, savedAt: 1 } };
           }
           if (method === 'setChannel') state = { ...state, channel: args[0] };
           if (method === 'startGateway') state = { ...state, running: true };
@@ -85,10 +85,9 @@ function boot(options: { credentials?: Record<string, unknown> | null } = {}) {
 type Ui = ReturnType<typeof boot>;
 
 /** Walks the picker -> form -> submit path for one login attempt. */
-function submit(ui: Ui, channel: string, phone: string, pin: string) {
+function submit(ui: Ui, channel: string, phone: string) {
   ui.tile(channel).click();
   ui.input('login-phone').value = phone;
-  ui.input('login-pin').value = pin;
   ui.$('login-form').dispatchEvent(new ui.window.Event('submit', { bubbles: true, cancelable: true }));
 }
 
@@ -109,7 +108,7 @@ describe('branded login form', () => {
     expect(ui.visible('onboard-login')).toBe(true);
     expect(ui.visible('onboard-pick')).toBe(false);
     expect(ui.$('login-title').textContent).toBe('Log in to Telebirr');
-    expect(ui.$('login-pin-label').textContent).toBe('PIN');
+    expect(ui.$('login-sub').textContent).toBe('Enter the mobile money number used for payouts.');
     expect(ui.$('onboarding').style.getPropertyValue('--brand')).toBe('#0172bb');
     expect(ui.$('login-logo').innerHTML).toContain('Telebirr logo');
   });
@@ -118,7 +117,7 @@ describe('branded login form', () => {
     const ui = boot();
     ui.tile('CBE').click();
     expect(ui.$('login-title').textContent).toBe('Log in to CBE');
-    expect(ui.$('login-pin-label').textContent).toBe('PIN / password');
+    expect(ui.$('login-sub').textContent).toBe('Enter the CBE phone number used for payouts.');
     expect(ui.$('onboarding').style.getPropertyValue('--brand')).toBe('#007C4A');
     expect(ui.$('login-logo').innerHTML).toContain('CBE logo');
   });
@@ -131,29 +130,28 @@ describe('branded login form', () => {
     expect(ui.visible('onboard-login')).toBe(false);
   });
 
-  it('shows a +251 prefix and masks the PIN until toggled', () => {
+  it('shows a +251 prefix and a single phone field', () => {
     const ui = boot();
     ui.tile('TELEBIRR').click();
     expect(ui.$('login-form').textContent).toContain('+251');
-    expect(ui.input('login-pin').type).toBe('password');
-    ui.$('login-pin-toggle').click();
-    expect(ui.input('login-pin').type).toBe('text');
-    expect(ui.$('login-pin-toggle').getAttribute('aria-pressed')).toBe('true');
+    // Onboarding is phone-only: there is no PIN field to toggle.
+    expect(ui.input('login-pin')).toBeNull();
+    expect(ui.$('login-pin-toggle')).toBeNull();
   });
 });
 
 describe('credential validation', () => {
-  it('rejects a short PIN and does not call the bridge', () => {
+  it('rejects an empty phone number and does not call the bridge', () => {
     const ui = boot();
-    submit(ui, 'TELEBIRR', '0911234567', '12');
+    submit(ui, 'TELEBIRR', '');
     expect(ui.calls.some((c) => c.method === 'setCredentials')).toBe(false);
-    expect(ui.visible('login-pin-error')).toBe(true);
+    expect(ui.visible('login-phone-error')).toBe(true);
     expect(ui.visible('onboarding')).toBe(true);
   });
 
   it('rejects a malformed phone number', () => {
     const ui = boot();
-    submit(ui, 'CBE', '12345', '1234');
+    submit(ui, 'CBE', '12345');
     expect(ui.calls.some((c) => c.method === 'setCredentials')).toBe(false);
     expect(ui.visible('login-phone-error')).toBe(true);
   });
@@ -161,7 +159,7 @@ describe('credential validation', () => {
   it('accepts +251, 251 and bare 9-prefixed numbers', () => {
     for (const typed of ['+251911234567', '251911234567', '911234567', '0911234567']) {
       const ui = boot();
-      submit(ui, 'TELEBIRR', typed, '1234');
+      submit(ui, 'TELEBIRR', typed);
       const call = ui.calls.find((c) => c.method === 'setCredentials');
       expect(call, `expected ${typed} to be accepted`).toBeTruthy();
       expect(call?.args[1]).toBe('0911234567');
@@ -180,11 +178,11 @@ describe('credential validation', () => {
   it('rejects landline and short numbers, and accepts Ethio Telecom 07 numbers', () => {
     for (const bad of ['0111234567', '091123456', '09112345678', '', 'abc']) {
       const ui = boot();
-      submit(ui, 'TELEBIRR', bad, '1234');
+      submit(ui, 'TELEBIRR', bad);
       expect(ui.calls.some((c) => c.method === 'setCredentials'), `expected ${bad} to be rejected`).toBe(false);
     }
     const ui = boot();
-    submit(ui, 'CBE', '0712345678', '1234');
+    submit(ui, 'CBE', '0712345678');
     expect(ui.calls.find((c) => c.method === 'setCredentials')?.args[1]).toBe('0712345678');
   });
 });
@@ -221,7 +219,6 @@ describe('JS / Kotlin phone normalisation parity', () => {
       const ui = boot();
       ui.tile('TELEBIRR').click();
       ui.input('login-phone').value = typed.replace(/\D/g, '');
-      ui.input('login-pin').value = '1234';
       ui.$('login-form').dispatchEvent(
         new ui.window.Event('submit', { bubbles: true, cancelable: true }),
       );
@@ -232,31 +229,31 @@ describe('JS / Kotlin phone normalisation parity', () => {
 });
 
 describe('local storage sync', () => {
-  function login(channel: string, phone: string, pin: string) {
+  function login(channel: string, phone: string) {
     const ui = boot();
-    submit(ui, channel, phone, pin);
+    submit(ui, channel, phone);
     return ui;
   }
 
-  it('persists channel, phone and PIN through the bridge', () => {
-    const ui = login('CBE', '0911234567', '4821');
+  it('persists channel and phone through the bridge', () => {
+    const ui = login('CBE', '0911234567');
     const call = ui.calls.find((c) => c.method === 'setCredentials');
-    expect(call?.args).toEqual(['CBE', '0911234567', '4821']);
+    expect(call?.args).toEqual(['CBE', '0911234567']);
   });
 
-  it('mirrors channel and phone to localStorage but never the PIN', () => {
-    const ui = login('TELEBIRR', '0911234567', '4821');
+  it('mirrors channel and phone to localStorage with no PIN field present', () => {
+    const ui = login('TELEBIRR', '0911234567');
     const raw = ui.window.localStorage.getItem('ussd.credentials');
     expect(raw).toBeTruthy();
     const stored = JSON.parse(raw as string);
     expect(stored.channel).toBe('TELEBIRR');
     expect(stored.phone).toBe('0911234567');
-    expect(raw).not.toContain('4821');
+    // Onboarding is phone-only, so nothing secret is ever mirrored.
     expect(stored.pin).toBeUndefined();
   });
 
   it('closes the overlay onto the minimal active view once saved', async () => {
-    const ui = login('CBE', '0911234567', '4821');
+    const ui = login('CBE', '0911234567');
     // The close is deferred so the confirmation is visible first.
     await new Promise((resolve) => ui.window.setTimeout(resolve, 600));
     expect(ui.visible('onboarding')).toBe(false);
@@ -275,7 +272,7 @@ describe('local storage sync', () => {
   });
 
   it('keeps the active view free of secondary copy', () => {
-    const ui = login('TELEBIRR', '0911234567', '4821');
+    const ui = login('TELEBIRR', '0911234567');
     // The orb and the pill are the whole active state: the old "waiting" line
     // and the SIM routing text are gone for good.
     expect(ui.$('active-sub')).toBeNull();
@@ -286,14 +283,13 @@ describe('local storage sync', () => {
   });
 
   it('leaves the auto-start to the bridge instead of dialling it from the page', () => {
-    const ui = login('TELEBIRR', '0911234567', '4821');
+    const ui = login('TELEBIRR', '0911234567');
     // The native bridge starts the gateway inside setCredentials; a second call
     // from here would log "Gateway started" twice on a real device.
     expect(ui.calls.some((c) => c.method === 'startGateway')).toBe(false);
     expect(ui.calls.find((c) => c.method === 'setCredentials')?.args).toEqual([
       'TELEBIRR',
       '0911234567',
-      '4821',
     ]);
   });
 });

@@ -253,17 +253,19 @@ class MainActivity : ComponentActivity() {
         /**
          * Persists the onboarding login for [channel] into SharedPreferences("ussd"),
          * the same store the polling and accessibility services read, so the saved
-         * phone and PIN are available to the automated USSD session, then starts
-         * the polling listener so "Save & continue" is the whole onboarding.
-         * Credentials.save() re-validates on the native side: the WebView is not
-         * a trust boundary, and the PIN never comes back out to the page.
+         * phone number is available to the automated USSD session, then starts the
+         * polling listener so "Save & continue" is the whole onboarding.
+         * Credentials.save() re-validates on the native side - the WebView is not a
+         * trust boundary. No PIN travels through this call: the wallet PIN is
+         * captured by the accessibility service from the first payout USSD session
+         * and never handed back to the page.
          */
         @JavascriptInterface
-        fun setCredentials(channel: String, phone: String, pin: String) {
+        fun setCredentials(channel: String, phone: String) {
             if (channel != "TELEBIRR" && channel != "CBE") return
-            val normalized = Credentials.save(this@MainActivity, channel, phone, pin)
+            val normalized = Credentials.save(this@MainActivity, channel, phone)
             if (normalized == null) {
-                ActivityLog.add(this@MainActivity, "error", "Login rejected · check the phone number and PIN")
+                ActivityLog.add(this@MainActivity, "error", "Login rejected · check the phone number")
                 pushState()
                 return
             }

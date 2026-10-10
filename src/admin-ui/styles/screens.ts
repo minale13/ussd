@@ -20,20 +20,20 @@ export const SCREENS = `
 .balance::after{
   content:'';position:absolute;top:-70px;right:-50px;width:230px;height:230px;
   border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle,rgba(0,229,195,.22),transparent 68%);
+  background:radial-gradient(circle,rgba(168,85,247,.22),transparent 68%);
 }
 .balance-top{display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative}
 .balance-label{font:700 10.5px/1 var(--font);letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
 .balance-icon{
   width:38px;height:38px;border-radius:13px;display:grid;place-items:center;flex:none;
-  color:var(--neon);background:rgba(0,229,195,.12);
-  box-shadow:inset 0 0 0 1px rgba(0,229,195,.26);
+  color:var(--neon);background:rgba(168,85,247,.12);
+  box-shadow:inset 0 0 0 1px rgba(168,85,247,.26);
 }
 .balance-value{position:relative;margin-top:14px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .balance-amount{
   position:relative;
   font:800 34px/1.05 var(--font-display);letter-spacing:-.03em;
-  font-variant-numeric:tabular-nums;color:#EAFFF8;
+  font-variant-numeric:tabular-nums;color:#F3F0FF;
 }
 .balance-unit{font-size:13px;font-weight:600;color:var(--text-2)}
 /* An emptied amount span would collapse to zero width, so skeletons get a floor. */
@@ -63,13 +63,13 @@ export const SCREENS = `
 .tile:active{transform:scale(.98)}
 .tile-icon{
   width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.22);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.22);
 }
 .tile-label{font:700 10px/1.2 var(--font);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)}
 .tile-value{font:800 19px/1.1 var(--font-display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .tile-value.skel{display:block;min-width:70px;height:20px}
 .tile-foot{font-size:11px;color:var(--text-3)}
-.tile.green .tile-icon{color:var(--neon-green);background:rgba(0,224,143,.11);box-shadow:inset 0 0 0 1px rgba(0,224,143,.22)}
+.tile.green .tile-icon{color:var(--success);background:rgba(0,224,143,.11);box-shadow:inset 0 0 0 1px rgba(0,224,143,.22)}
 .tile.blue .tile-icon{color:var(--blue);background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px rgba(22,131,255,.24)}
 .tile.purple .tile-icon{color:#A78BFA;background:rgba(124,58,237,.14);box-shadow:inset 0 0 0 1px rgba(124,58,237,.26)}
 .tile.blue .tile-value{color:#EAF3FF}
@@ -88,7 +88,7 @@ export const SCREENS = `
 .txn:active{transform:scale(.985)}
 .txn-icon{
   width:40px;height:40px;flex:none;border-radius:13px;display:grid;place-items:center;
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.2);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.2);
 }
 .txn-icon.blue{color:var(--blue);background:rgba(22,131,255,.13);box-shadow:inset 0 0 0 1px rgba(22,131,255,.24)}
 .txn-icon.danger{color:var(--error);background:rgba(255,77,109,.12);box-shadow:inset 0 0 0 1px rgba(255,77,109,.24)}
@@ -132,7 +132,7 @@ export const SCREENS = `
 /* Battery bar, reused by the fleet row and the device detail screen. */
 .battery{display:flex;align-items:center;gap:8px}
 .battery-track{width:46px;height:6px;flex:none;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.10)}
-.battery-fill{height:100%;border-radius:3px;background:var(--neon-green);box-shadow:0 0 8px rgba(0,224,143,.6)}
+.battery-fill{height:100%;border-radius:3px;background:var(--success);box-shadow:0 0 8px rgba(0,224,143,.6)}
 .battery-value{font-size:11.5px;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;min-width:32px}
 .battery.low .battery-fill{background:var(--amber);box-shadow:0 0 8px rgba(255,176,32,.6)}
 .battery.low .battery-value{color:#FFD79B}
@@ -159,7 +159,7 @@ export const SCREENS = `
   transition:border-color var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease);
 }
 .search input::placeholder{color:var(--text-3)}
-.search input:focus{outline:none;border-color:rgba(0,229,195,.55);box-shadow:0 0 0 3px rgba(0,229,195,.12)}
+.search input:focus{outline:none;border-color:rgba(168,85,247,.55);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
 
 /* ---------------- Filter tabs (All / Cash-in / Withdrawal / Failed) ---------------- */
 .tabs{
@@ -176,9 +176,9 @@ export const SCREENS = `
 }
 .tab:hover{color:var(--text);border-color:var(--line)}
 .tab.is-active{
-  color:#012B26;font-weight:700;
+  color:#2E1065;font-weight:700;
   background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  border-color:transparent;box-shadow:0 6px 18px rgba(0,229,195,.28);
+  border-color:transparent;box-shadow:0 6px 18px rgba(168,85,247,.28);
 }
 .tab-count{margin-left:6px;opacity:.7;font-variant-numeric:tabular-nums}
 
@@ -209,7 +209,7 @@ export const SCREENS = `
 }
 .input-wrap input::placeholder,.field-group textarea::placeholder{color:var(--text-3)}
 .input-wrap input:focus,.field-group textarea:focus{
-  outline:none;border-color:rgba(0,229,195,.55);box-shadow:0 0 0 3px rgba(0,229,195,.12);
+  outline:none;border-color:rgba(168,85,247,.55);box-shadow:0 0 0 3px rgba(168,85,247,.12);
 }
 .field-group textarea{min-height:74px;resize:vertical;font:inherit;font-size:14px;line-height:1.5}
 .field-group.has-error input{border-color:rgba(255,77,109,.65);box-shadow:0 0 0 3px rgba(255,77,109,.12)}
@@ -227,8 +227,8 @@ export const SCREENS = `
 }
 .chip:hover{border-color:var(--line)}
 .chip.is-active{
-  color:#012B26;background:linear-gradient(135deg,var(--neon),var(--neon-green));
-  border-color:transparent;box-shadow:0 6px 18px rgba(0,229,195,.28);
+  color:#2E1065;background:linear-gradient(135deg,var(--neon),var(--neon-green));
+  border-color:transparent;box-shadow:0 6px 18px rgba(168,85,247,.28);
 }
 
 /* Custom listbox (channel / target device) */
@@ -241,7 +241,7 @@ export const SCREENS = `
   -webkit-tap-highlight-color:transparent;
 }
 .select:hover{border-color:var(--line-strong)}
-.select:focus-visible{border-color:rgba(0,229,195,.55);box-shadow:0 0 0 3px rgba(0,229,195,.12)}
+.select:focus-visible{border-color:rgba(168,85,247,.55);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
 .select-value{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
 .select-value span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .select .chevron{color:var(--text-3);flex:none;transition:transform var(--t-fast) var(--ease)}
@@ -267,12 +267,12 @@ export const SCREENS = `
 .option-copy strong{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .option-copy small{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .option .check{color:var(--neon);opacity:0;flex:none}
-.option.selected{background:rgba(0,229,195,.10)}
+.option.selected{background:rgba(168,85,247,.10)}
 .option.selected .check{opacity:1}
 .mini-badge{
   flex:none;height:22px;padding:0 9px;display:inline-flex;align-items:center;border-radius:var(--r-pill);
   font:700 10px/1 var(--font);letter-spacing:.05em;text-transform:uppercase;
-  color:#BDF5E4;background:rgba(0,229,195,.12);box-shadow:inset 0 0 0 1px rgba(0,229,195,.24);
+  color:#E9D5FF;background:rgba(168,85,247,.12);box-shadow:inset 0 0 0 1px rgba(168,85,247,.24);
 }
 .mini-badge.auto{color:var(--text-2);background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line-soft)}
 
@@ -289,7 +289,7 @@ export const SCREENS = `
 
 
 
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.22);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.22);
 }
 .tile-label{font:700 10px/1.2 var(--font);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)}
 .tile-value{font:800 19px/1.1 var(--font-display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -298,8 +298,8 @@ export const SCREENS = `
 .detail-hero{display:flex;align-items:center;gap:14px;padding:20px 18px 16px}
 .detail-avatar{
   width:56px;height:56px;flex:none;border-radius:19px;display:grid;place-items:center;
-  color:var(--neon);background:rgba(0,229,195,.11);
-  box-shadow:inset 0 0 0 1px rgba(0,229,195,.24),0 10px 26px rgba(0,229,195,.16);
+  color:var(--neon);background:rgba(168,85,247,.11);
+  box-shadow:inset 0 0 0 1px rgba(168,85,247,.24),0 10px 26px rgba(168,85,247,.16);
 }
 .detail-name{font:700 17px/1.25 var(--font-display);letter-spacing:-.01em}
 .detail-id{margin-top:4px;font-size:11.5px;color:var(--text-3);word-break:break-all}
@@ -333,7 +333,7 @@ export const SCREENS = `
 .qa-item:hover{border-color:var(--line)}
 .qa-icon{
   width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none;
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.22);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.22);
 }
 .qa-item.blue .qa-icon{color:var(--blue);background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px rgba(22,131,255,.24)}
 .qa-item.purple .qa-icon{color:#A78BFA;background:rgba(124,58,237,.14);box-shadow:inset 0 0 0 1px rgba(124,58,237,.26)}
@@ -352,7 +352,7 @@ export const SCREENS = `
 button.setting-row:hover{background:rgba(255,255,255,.035)}
 .setting-icon{
   width:36px;height:36px;flex:none;border-radius:12px;display:grid;place-items:center;
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.2);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.2);
 }
 .setting-icon.blue{color:var(--blue);background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px rgba(22,131,255,.24)}
 .setting-icon.purple{color:#A78BFA;background:rgba(124,58,237,.14);box-shadow:inset 0 0 0 1px rgba(124,58,237,.24)}
@@ -376,6 +376,13 @@ button.setting-row:hover{background:rgba(255,255,255,.035)}
 }
 .switch[aria-checked="true"]{background:linear-gradient(135deg,var(--neon),var(--neon-green));border-color:transparent}
 .switch[aria-checked="true"]::after{transform:translateX(20px);background:#fff}
+/* A bank with no USSD flow yet cannot be enabled, so its switch is inert. */
+.switch:disabled{opacity:.4;cursor:not-allowed}
+
+/* Per-device bank toggle rows. The label stacks the bank name over an optional
+   note ("No USSD flow yet") for a bank the handset cannot run. */
+.bank-row .row-label{flex-direction:column;align-items:flex-start;gap:2px}
+.row-note{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--text-3)}
 
 /* ---------------- Notifications feed ---------------- */
 .notif{
@@ -384,10 +391,10 @@ button.setting-row:hover{background:rgba(255,255,255,.035)}
   background:linear-gradient(158deg,rgba(12,34,66,.78),rgba(6,18,38,.72));
   border:1px solid var(--line-soft);
 }
-.notif.is-unread{border-color:rgba(0,229,195,.28);box-shadow:inset 0 0 0 1px rgba(0,229,195,.10)}
+.notif.is-unread{border-color:rgba(168,85,247,.28);box-shadow:inset 0 0 0 1px rgba(168,85,247,.10)}
 .notif-icon{
   width:36px;height:36px;flex:none;border-radius:12px;display:grid;place-items:center;
-  color:var(--neon);background:rgba(0,229,195,.11);box-shadow:inset 0 0 0 1px rgba(0,229,195,.2);
+  color:var(--neon);background:rgba(168,85,247,.11);box-shadow:inset 0 0 0 1px rgba(168,85,247,.2);
 }
 .notif-icon.danger{color:var(--error);background:rgba(255,77,109,.12);box-shadow:inset 0 0 0 1px rgba(255,77,109,.22)}
 .notif-icon.warn{color:var(--amber);background:rgba(255,176,32,.12);box-shadow:inset 0 0 0 1px rgba(255,176,32,.22)}

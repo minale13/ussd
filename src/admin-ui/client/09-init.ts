@@ -31,14 +31,35 @@ export const CLIENT_INIT = `
    * overlay would sit on top of the dashboard for good. Both outcomes run done().
    */
   function runSplash() {
-    var health = fetch('/health').then(function (response) {
-      if (!response.ok) throw new Error('unreachable');
-      return response.json();
-    }).then(function (body) {
-      setGatewayStatus(true, body.status === 'degraded' ? 'Degraded' : 'Gateway connected');
-    }).catch(function () {
-      setGatewayStatus(false, 'Gateway unreachable');
-    });
+    // /health gets its own deadline: a hung probe resolves to "unreachable"
+    // instead of pinning Promise.all (and with it the full-screen splash
+    // overlay) on a socket that never answers - the splash then releases one
+    // BOOT_MS after the minimum display time rather than never. The deadline
+    // only reports when the probe has not answered yet, so a late success can
+    // never be overwritten by the fallback (and a late probe simply overwrites
+    // the fallback with the real answer).
+    var healthAnswered = false;
+    var deadline = null;
+    var health = Promise.race([
+      fetch('/health').then(function (response) {
+        if (!response.ok) throw new Error('unreachable');
+        return response.json();
+      }).then(function (body) {
+        healthAnswered = true;
+        clearTimeout(deadline);
+        setGatewayStatus(true, body.status === 'degraded' ? 'Degraded' : 'Gateway connected');
+      }).catch(function () {
+        healthAnswered = true;
+        clearTimeout(deadline);
+        setGatewayStatus(false, 'Gateway unreachable');
+      }),
+      new Promise(function (resolve) {
+        deadline = setTimeout(function () {
+          if (!healthAnswered) setGatewayStatus(false, 'Gateway unreachable');
+          resolve();
+        }, BOOT_MS);
+      })
+    ]);
 
     var release = new Promise(function (resolve) { bootTimer = setTimeout(resolve, BOOT_MS); });
     var done = function () {
@@ -197,6 +218,17 @@ export const CLIENT_INIT = `
       var device = state.selectedDevice;
       if (!device) return;
       restartDevice(device.device_id, this);
+    });
+    // Per-device bank switches. Delegated so re-rendering the rows (after a
+    // refresh) does not need re-binding; each switch carries its bank code.
+    byId('bank-toggles').addEventListener('click', function (event) {
+      var button = event.target.closest('.bank-switch');
+      if (!button || button.disabled) return;
+      var device = state.selectedDevice;
+      if (!device) return;
+      var bank = button.getAttribute('data-bank');
+      var nextOn = button.getAttribute('aria-checked') !== 'true';
+      toggleDeviceBank(device.device_id, bank, nextOn, button);
     });
     byId('notify-toggle').addEventListener('click', function () {
       state.notifications = !state.notifications;

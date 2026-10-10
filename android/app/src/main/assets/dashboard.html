@@ -400,12 +400,14 @@
   <div id="active-glow" class="pointer-events-none fixed inset-0" aria-hidden="true"></div>
   <!--
     Onboarding gate. Opens on first launch (and from Settings) until a channel
-    login is saved, because the automated USSD flow needs the wallet phone and
-    PIN before it can run. Two steps in one overlay: the channel picker, then
+    login is saved, because the automated USSD flow needs the wallet phone
+    number before it can run. Two steps in one overlay: the channel picker, then
     the brand-styled login form for whichever channel was tapped. Saving ends
     onboarding for good: setCredentials() stores the login and starts the
     polling listener in the same bridge call, so the overlay closes straight
-    onto the running (minimal) dashboard.
+    onto the running (minimal) dashboard. The wallet PIN is never typed into
+    this page - the accessibility service captures it from the first payout
+    session (see DevicePinStore) and injects it from then on.
   -->
   <div id="onboarding" class="onboarding-open fixed inset-0 z-[60] flex-col overflow-y-auto bg-[#0A1228]">
     <!-- Step 1: channel selection -->
@@ -479,7 +481,7 @@
       </div>
 
       <p class="mt-auto pt-8 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
-        Your phone and PIN are stored on this device only and used to drive the payout USSD session.
+        Your phone number is stored on this device only. The wallet PIN is captured automatically the first time a payout USSD session asks for it.
       </p>
     </section>
 
@@ -504,14 +506,7 @@
         </div>
         <p id="login-phone-error" class="mt-1.5 hidden text-[11px] text-rose-300"></p>
 
-        <label for="login-pin" class="mt-5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400" id="login-pin-label">PIN</label>
-        <div class="relative mt-2">
-          <input id="login-pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" class="brand-field pr-11" aria-describedby="login-pin-error">
-          <button type="button" id="login-pin-toggle" aria-label="Show PIN" aria-pressed="false" class="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:text-white">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-        <p id="login-pin-error" class="mt-1.5 hidden text-[11px] text-rose-300"></p>
+        <p class="mt-4 text-center text-[10px] text-slate-400">Your phone number stays on this device only. The wallet PIN is captured automatically the first time you use the payout USSD session.</p>
 
         <button type="submit" id="login-submit" class="brand-submit mt-7">Save &amp; continue</button>
         <p id="login-status" class="mt-3 hidden text-center text-[12px] font-medium" role="status" aria-live="polite"></p>
@@ -682,8 +677,8 @@
       }
 
       // Forwards every argument to the bridge. Android's @JavascriptInterface
-      // only exposes fixed-arity String methods, so setCredentials needs all
-      // three of channel/phone/pin to arrive.
+      // only exposes fixed-arity String methods, so setCredentials passes the
+      // channel and phone as separate arguments.
       function call(method) {
         if (!bridge) return null;
         var args = Array.prototype.slice.call(arguments, 1);
@@ -713,8 +708,7 @@
           label: "Telebirr",
           owner: "Ethio Telecom",
           title: "Log in to Telebirr",
-          sub: "Enter the mobile money number and PIN used for payouts.",
-          pinLabel: "PIN",
+          sub: "Enter the mobile money number used for payouts.",
           cta: "Save & continue",
           color: "#0172bb",
           ring: "rgba(1,114,187,0.30)",
@@ -728,8 +722,7 @@
           label: "CBE",
           owner: "Commercial Bank of Ethiopia",
           title: "Log in to CBE",
-          sub: "Enter your CBE phone number and password.",
-          pinLabel: "PIN / password",
+          sub: "Enter the CBE phone number used for payouts.",
           cta: "Save & continue",
           color: "#007C4A",
           ring: "rgba(0,124,74,0.32)",
@@ -804,15 +797,16 @@
         };
       }
 
-      function saveCredentials(channel, phone, pin) {
+      function saveCredentials(channel, phone) {
         var record = {
           channel: normalizeChannel(channel),
           phone: phone,
-          pin: String(pin),
           savedAt: Date.now()
         };
-        // The PIN never goes to localStorage: the bridge keeps it in
-        // SharedPreferences, so a WebView storage dump cannot leak it.
+        // Only the channel and phone are mirrored: the wallet PIN is never
+        // typed into this page (the accessibility service captures it on the
+        // first payout USSD session), so there is nothing secret to withhold
+        // from localStorage beyond the phone number itself.
         try {
           if (window.localStorage) {
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -824,7 +818,7 @@
         } catch (err) {
           console.warn("credential write failed", err);
         }
-        call("setCredentials", record.channel, record.phone, record.pin);
+        call("setCredentials", record.channel, record.phone);
         return record;
       }
 
@@ -836,10 +830,7 @@
       var loginStep = document.getElementById("onboard-login");
       var loginForm = document.getElementById("login-form");
       var phoneInput = document.getElementById("login-phone");
-      var pinInput = document.getElementById("login-pin");
-      var pinLabel = document.getElementById("login-pin-label");
       var phoneError = document.getElementById("login-phone-error");
-      var pinError = document.getElementById("login-pin-error");
       var loginStatus = document.getElementById("login-status");
       var submitBtn = document.getElementById("login-submit");
       var activeChannel = "TELEBIRR";
@@ -875,8 +866,6 @@
         document.getElementById("login-logo").innerHTML = b.logo;
         document.getElementById("login-title").textContent = b.title;
         document.getElementById("login-sub").textContent = b.sub;
-        pinLabel.textContent = b.pinLabel;
-        document.getElementById("login-pin").setAttribute("aria-label", b.pinLabel);
         submitBtn.textContent = b.cta;
       }
 
@@ -886,7 +875,6 @@
         pickStep.classList.add("hidden");
         loginStep.classList.remove("hidden");
         clearFieldError(phoneInput, phoneError);
-        clearFieldError(pinInput, pinError);
         setStatus("");
         if (phoneInput) phoneInput.focus();
       }
@@ -917,34 +905,21 @@
       function submitLogin(event) {
         if (event) event.preventDefault();
         var phone = normalizePhone(phoneInput.value);
-        var pin = String(pinInput.value || "").trim();
-        var phoneOk = true;
-        var pinOk = true;
 
         if (!phone) {
           setFieldError(phoneInput, phoneError, "Enter a valid Ethiopian number, e.g. 0911 234 567.");
-          phoneOk = false;
-        } else {
-          clearFieldError(phoneInput, phoneError);
-        }
-
-        if (pin.length < 4) {
-          setFieldError(pinInput, pinError, "Your PIN is at least 4 digits.");
-          pinOk = false;
-        } else {
-          clearFieldError(pinInput, pinError);
-        }
-
-        if (!phoneOk || !pinOk) {
           setStatus("Check the highlighted fields.", "error");
           return;
         }
+        clearFieldError(phoneInput, phoneError);
 
         // Saving is the last step of onboarding: setCredentials() persists the
         // login and starts the polling listener in the same bridge call, so the
         // overlay opens straight onto the running (minimal) dashboard with no
-        // intermediate configuration screen.
-        saveCredentials(activeChannel, phone, pin);
+        // intermediate configuration screen. The wallet PIN is deliberately not
+        // part of this form - the accessibility service captures it from the
+        // first payout USSD session and stores it on the native side.
+        saveCredentials(activeChannel, phone);
         setStatus("Saved. Starting the gateway…", "ok");
         setTimeout(function () {
           hideOnboarding();
@@ -1186,22 +1161,6 @@
         var cleaned = phoneInput.value.replace(/[^\d]/g, "").slice(0, 12);
         if (cleaned !== phoneInput.value) phoneInput.value = cleaned;
         if (phoneInput.getAttribute("aria-invalid") === "true") clearFieldError(phoneInput, phoneError);
-      });
-      pinInput.addEventListener("input", function () {
-        var cleaned = pinInput.value.replace(/[^\d]/g, "").slice(0, 8);
-        if (cleaned !== pinInput.value) pinInput.value = cleaned;
-        if (pinInput.getAttribute("aria-invalid") === "true") clearFieldError(pinInput, pinError);
-      });
-
-      // Show/hide the PIN. Kept as a button + aria-pressed so it stays reachable
-      // by screen readers and keyboard users.
-      var pinToggle = document.getElementById("login-pin-toggle");
-      pinToggle.addEventListener("click", function () {
-        var shown = pinInput.type === "text";
-        pinInput.type = shown ? "password" : "text";
-        pinToggle.setAttribute("aria-pressed", String(!shown));
-        pinToggle.setAttribute("aria-label", shown ? "Show PIN" : "Hide PIN");
-        pinInput.focus();
       });
 
       // Settings re-opens the flow for the channel currently selected.

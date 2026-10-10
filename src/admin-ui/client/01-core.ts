@@ -10,8 +10,25 @@ export const CLIENT_CORE = `
 
   var REFRESH_MS = 30000;
   var BOOT_MS = 1100;
+  // Deadline for one admin API round-trip; see api(). Long enough to survive a
+  // cold start, short enough that a dead network is reported while the operator
+  // is still watching the screen instead of leaving the spinner forever.
+  var API_TIMEOUT_MS = 10000;
   var ANY_TARGET = 'ANY';
   var CHANNEL_LABELS = { TELEBIRR: 'Telebirr', CBE: 'CBE' };
+  // The banks the console offers as per-device toggles, in canonical order. Kept
+  // in step with src/utils/banks.ts on the server: 'executable' marks the banks
+  // whose USSD flow the Android client can dial today, so a switch for a bank
+  // with no known USSD flow is rendered disabled rather than silently doing
+  // nothing on the handset.
+  var BANK_LABELS = { TELEBIRR: 'Telebirr', CBEBIRR: 'CBE Birr', AWASH: 'Awash Bank', DASHEN: 'Dashen Bank', ABYSSINIA: 'Bank of Abyssinia' };
+  var BANKS = [
+    { code: 'TELEBIRR', label: 'Telebirr', executable: true },
+    { code: 'CBEBIRR', label: 'CBE Birr', executable: true },
+    { code: 'AWASH', label: 'Awash Bank', executable: false },
+    { code: 'DASHEN', label: 'Dashen Bank', executable: false },
+    { code: 'ABYSSINIA', label: 'Bank of Abyssinia', executable: false }
+  ];
   var MENUS = {
     channel: { dropdown: 'channel-dropdown', button: 'channel-button', menu: 'channel-menu' },
     target: { dropdown: 'target-dropdown', button: 'target-button', menu: 'target-menu' }
@@ -93,12 +110,31 @@ export const CLIENT_CORE = `
   /**
    * Every admin call carries the credentials straight from the input elements.
    * They are never copied into storage, a cookie or the URL.
+   *
+   * Each request is raced against [API_TIMEOUT_MS] and aborted when it wins:
+   * a hung round-trip (dead Wi-Fi, a proxy holding the socket open, a database
+   * that never answers) must surface as a failed load the console can render -
+   * otherwise state.loading stays true, the refresh spinner never stops and
+   * every later load() short-circuits on the stuck flag, freezing the whole
+   * dashboard on its loading state.
    */
   function api(path, options) {
     var request = options || {};
     var keyField = byId('key');
     var userField = byId('username');
-    return fetch(path, {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = null;
+    var timeout = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () {
+        if (controller) {
+          try { controller.abort(); } catch (err) { /* already settled */ }
+        }
+        var error = new Error('The gateway took too long to respond.');
+        error.timeout = true;
+        reject(error);
+      }, API_TIMEOUT_MS);
+    });
+    var attempt = fetch(path, {
       method: request.method || 'GET',
       headers: Object.assign(
         {
@@ -108,7 +144,8 @@ export const CLIENT_CORE = `
         },
         request.headers || {}
       ),
-      body: request.body
+      body: request.body,
+      signal: controller ? controller.signal : undefined
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
         if (!response.ok) {
@@ -122,6 +159,10 @@ export const CLIENT_CORE = `
         return body;
       });
     });
+    return Promise.race([attempt, timeout]).then(
+      function (body) { clearTimeout(timer); return body; },
+      function (error) { clearTimeout(timer); throw error; }
+    );
   }
 
   /**
@@ -133,6 +174,7 @@ export const CLIENT_CORE = `
    */
   function authMessage(error) {
     var status = error && error.status;
+    if (error && error.timeout) return 'The gateway took too long to respond. Check your network and try again.';
     if (status === 401 || status === 403) return 'Invalid username or password.';
     if (status === 503) return 'Admin console is not configured. Set ADMIN_API_KEY in the deployment environment.';
     if (status === 429) return 'Too many attempts. Wait a minute and try again.';

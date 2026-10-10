@@ -15,6 +15,16 @@ export const CLIENT_REALTIME = `
     var controller = typeof AbortController === 'function' ? new AbortController() : null;
     streamAbort = controller;
 
+    // The connect itself gets a deadline. Without it, a proxy that accepts the
+    // socket but never answers leaves streamAbort set forever, so every later
+    // openEventStream() no-ops and live updates stop until a page reload; the
+    // 30s poll below keeps the data fresh either way.
+    var connectTimer = setTimeout(function () {
+      if (controller) {
+        try { controller.abort(); } catch (err) { /* already closed */ }
+      }
+    }, API_TIMEOUT_MS);
+
     fetch('/api/admin/stream', {
       headers: {
         'x-admin-username': byId('username').value.trim(),
@@ -23,10 +33,14 @@ export const CLIENT_REALTIME = `
       },
       signal: controller ? controller.signal : undefined
     }).then(function (response) {
+      clearTimeout(connectTimer);
       if (!response.ok || !response.body) throw new Error('stream unavailable');
       return readStream(response.body, onGatewayEvent);
     }).catch(function () {
-      // A dropped stream is not fatal: the 30s poll still refreshes the app.
+      // A dropped stream is not fatal: the 30s poll still refreshes the app,
+      // and clearing the handle lets the next attempt (or the next successful
+      // load) reopen it instead of being blocked by a stale controller.
+      clearTimeout(connectTimer);
       streamAbort = null;
     });
   }

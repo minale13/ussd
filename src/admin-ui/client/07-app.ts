@@ -220,6 +220,46 @@ export const CLIENT_APP = `
   }
 
   /**
+   * Flips one bank on/off for a device.
+   *
+   * The whole set is recomputed client-side from the current switches and posted
+   * to the banks endpoint, which is the single write path: the server validates
+   * every code against its registry and stores the canonical set, so the device
+   * only ever executes payouts for banks an operator explicitly turned on. The
+   * switch reflects the change immediately and is rolled back if the request
+   * fails, so a rejected toggle never leaves the UI lying about device access.
+   */
+  function toggleDeviceBank(deviceId, bank, nextOn, button) {
+    if (button) button.disabled = true;
+    var previous = button.getAttribute('aria-checked') === 'true';
+    button.setAttribute('aria-checked', nextOn ? 'true' : 'false');
+    var device = findDevice(deviceId) || state.selectedDevice;
+    var banks = enabledBanksOf(device);
+    var next = nextOn ? banks.concat([bank]) : banks.filter(function (code) { return code !== bank; });
+    return api('/api/admin/devices/' + encodeURIComponent(deviceId) + '/banks', {
+      method: 'PATCH',
+      body: JSON.stringify({ banks: next })
+    }).then(function (result) {
+      if (result && result.device) {
+        // Adopt the server's canonical set so the switches and the stored truth
+        // can never drift (ordering, aliases, de-duplication all normalised).
+        var saved = findDevice(deviceId);
+        if (saved) saved.enabled_banks = result.device.enabled_banks;
+        if (state.selectedDevice && state.selectedDevice.device_id === deviceId) {
+          state.selectedDevice.enabled_banks = result.device.enabled_banks;
+        }
+      }
+      notify((BANK_LABELS[bank] || bank) + (nextOn ? ' enabled' : ' disabled') + ' for this device.');
+      renderBankToggles(findDevice(deviceId) || state.selectedDevice);
+    }).catch(function (error) {
+      button.setAttribute('aria-checked', previous ? 'true' : 'false');
+      notify(error && error.message ? error.message : 'Unable to update bank access.', 'error');
+    }).then(function () {
+      if (button) button.disabled = false;
+    });
+  }
+
+  /**
    * Cancelling a queued payout releases the reserved balance, so the cancel is
    * confirmed by the server state machine rather than forced client-side. The
    * button disables while the request is in flight and the queue refreshes.

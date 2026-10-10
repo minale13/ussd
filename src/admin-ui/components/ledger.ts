@@ -152,6 +152,17 @@ export function DeviceDetailScreen() {
   <article class="card">
     <div class="card-head">
       <div>
+        <h2 class="card-title">Bank access</h2>
+        <p class="card-sub">Choose which banks this phone may run payouts for. Only switched-on banks are executed on the device.</p>
+      </div>
+      <span class="count-chip" id="bank-count">0 on</span>
+    </div>
+    <div class="rows" id="bank-toggles"></div>
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <div>
         <h2 class="card-title">Device controls</h2>
         <p class="card-sub">Block the phone from claiming payouts, or ask it to re-arm.</p>
       </div>

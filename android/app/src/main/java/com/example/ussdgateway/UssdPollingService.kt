@@ -95,15 +95,28 @@ class UssdPollingService : Service() {
         val prefs = getSharedPreferences("ussd", MODE_PRIVATE)
         val providerId = withdrawal.provider_transaction_id ?: "USSD-${withdrawal.transaction_id}"
         prefs.edit().putString("provider_transaction_id", providerId).putString("destination", withdrawal.destination).putString("amount", withdrawal.amount).apply()
-        val channel = withdrawal.channel ?: prefs.getString("channel", "TELEBIRR") ?: "TELEBIRR"
+        // The canonical bank this payout is routed to. The gateway resolves it
+        // server-side (see resolveWithdrawalBank) and only hands a device payouts
+        // for banks the operator has switched on, so an older row that carries
+        // just the legacy `channel` still dials the right menu. The legacy `CBE`
+        // label is CBE Birr's mobile wallet, so it maps to the *889# prefix.
+        val bank = normalizeBankCode(withdrawal.bank ?: withdrawal.channel ?: prefs.getString("channel", "TELEBIRR"))
         // The USSD session authenticates with the account saved during onboarding,
         // so a payout must not be dialled before that login exists.
         if (!Credentials.isConfigured(this)) {
             ActivityLog.add(this, "error", "Payout skipped · open the app and sign in to your channel first")
             return
         }
+        val prefix = ussdPrefixFor(bank)
+        // A bank with no known USSD payout flow (Awash, Dashen, Abyssinia) cannot
+        // be executed from the handset yet. Skip rather than dial a wrong menu:
+        // the gateway never targeted this device with it unless it was enabled,
+        // and a mis-dial would burn a real USSD session against the wrong bank.
+        if (prefix == null) {
+            ActivityLog.add(this, "error", "Payout skipped - no USSD flow for " + bankLabel(bank) + " yet")
+            return
+        }
         val simSlot = prefs.getInt("sim_slot", 0)
-        val prefix = if (channel == "CBE") "*889#" else BuildConfig.USSD_PREFIX
         val code = "$prefix*${withdrawal.destination}*${withdrawal.amount}#"
         if (checkSelfPermission(android.Manifest.permission.CALL_PHONE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             ActivityLog.add(this, "error", "Payout skipped · phone permission missing")
@@ -116,6 +129,42 @@ class UssdPollingService : Service() {
             .onSuccess { ActivityLog.add(this, "success", "USSD launched · $providerId · SIM ${simSlot + 1}") }
             .onFailure { ActivityLog.add(this, "error", "Could not start USSD call: ${it.message ?: "unknown error"}") }
     }
+
+    /**
+     * Folds any stored or reported bank/channel label onto a canonical bank code.
+     * Mirrors the server's `normalizeBank` (see src/utils/banks.ts): the legacy
+     * `CBE` channel is CBE Birr's mobile wallet, so it resolves to CBEBIRR.
+     * Unknown values fall back to Telebirr, matching how the client has always
+     * defaulted.
+     */
+    private fun normalizeBankCode(raw: String?): String {
+        return when (raw?.trim()?.uppercase()) {
+            "TELEBIRR" -> "TELEBIRR"
+            "CBEBIRR", "CBE" -> "CBEBIRR"
+            "AWASH" -> "AWASH"
+            "DASHEN" -> "DASHEN"
+            "ABYSSINIA" -> "ABYSSINIA"
+            else -> "TELEBIRR"
+        }
+    }
+
+    /** USSD menu prefix a bank's payout flow dials, or null when it has none yet. */
+    private fun ussdPrefixFor(bank: String): String? = when (bank) {
+        "TELEBIRR" -> BuildConfig.USSD_PREFIX
+        "CBEBIRR" -> "*889#"
+        else -> null
+    }
+
+    /** Human label for a bank code, for the activity log. */
+    private fun bankLabel(bank: String): String = when (bank) {
+        "TELEBIRR" -> "Telebirr"
+        "CBEBIRR" -> "CBE Birr"
+        "AWASH" -> "Awash Bank"
+        "DASHEN" -> "Dashen Bank"
+        "ABYSSINIA" -> "Bank of Abyssinia"
+        else -> bank
+    }
+
 
     /**
      * Dials [code] on the chosen SIM. The call is pinned to a specific phone account

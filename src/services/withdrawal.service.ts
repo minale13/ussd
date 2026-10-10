@@ -3,6 +3,36 @@ import type { PoolClient } from 'pg';
 import { pool } from '../db.js';
 import { canTransition, type WithdrawalStatus } from '../types/withdrawal.js';
 import { ANY_TARGET_DEVICE, normalizeTargetDeviceId } from '../utils/target-device.js';
+import { type BankCode, normalizeBank, normalizeBankList } from '../utils/banks.js';
+
+/**
+ * Resolves the set of banks a device is allowed to execute a payout for.
+ *
+ * A device configured with `enabled_banks` is limited to exactly that set, so an
+ * operator can turn, say, Telebirr and CBE on for one phone and Awash on for
+ * another. A device with a null/empty set (an older phone that predates the
+ * toggles) falls back to its single legacy `channel` so it keeps working
+ * unchanged; a device with neither is permitted every bank rather than silently
+ * stranded, which would make a fresh handset appear to ignore every payout.
+ */
+export function resolveEnabledBanks(row: { enabled_banks?: unknown; channel?: unknown }): BankCode[] {
+  const banks = normalizeBankList(row.enabled_banks);
+  if (banks.length > 0) return banks;
+  if (row.channel) return [normalizeBank(row.channel)];
+  return [];
+}
+
+/**
+ * The bank a withdrawal is routed to. New rows carry `bank`; older rows only have
+ * the legacy `channel`, which is aliased (CBE -> CBEBIRR). Never null on a real
+ * payout: an unset value falls back to Telebirr, matching how the Android client
+ * has always defaulted.
+ */
+export function resolveWithdrawalBank(row: { bank?: unknown; channel?: unknown }): BankCode {
+  if (row.bank) return normalizeBank(row.bank);
+  if (row.channel) return normalizeBank(row.channel);
+  return normalizeBank(null);
+}
 
 export interface CreateWithdrawalInput {
   userId: string;
@@ -161,6 +191,8 @@ export async function transitionWithdrawal(client: PoolClient, id: string, from:
  */
 export interface DeviceTelemetry {
   channel?: string | null;
+  /** Canonical bank codes the device is authorised to execute, for the per-device bank toggles. */
+  enabledBanks?: unknown;
   simSlot?: number | null;
   carrier?: string | null;
   batteryLevel?: number | null;
@@ -180,15 +212,22 @@ export async function claimPendingWithdrawals(
   telemetry: DeviceTelemetry = {}
 ) {
   const client = await pool.connect();
+  // The bank toggles are the authoritative record of which banks a device may
+  // execute for, so the console owns them and a poll never overwrites them. We
+  // only fall back to the poll's reported set when the row has none stored yet,
+  // which seeds a brand-new handset from what its app believes it can do.
+  const enabledBanks = telemetry.enabledBanks;
   try {
     await client.query('BEGIN');
     // Registering the device and refreshing its telemetry happen in the same
     // statement as the claim so a single poll both proves the phone is alive
-    // and records what it is currently able to do.
+    // and records what it is currently able to do. `enabled_banks` is only
+    // written when the row is still unconfigured (COALESCE keeps the stored set),
+    // so an operator's toggles are never clobbered by a poll.
     const device = await client.query(
       `INSERT INTO mobile_devices
-         (device_id, phone_model, sim_slot, channel, carrier, battery_level, network_type, last_ip)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (device_id, phone_model, sim_slot, channel, carrier, battery_level, network_type, last_ip, enabled_banks)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (device_id) DO UPDATE SET
          phone_model = EXCLUDED.phone_model,
          sim_slot = EXCLUDED.sim_slot,
@@ -197,9 +236,10 @@ export async function claimPendingWithdrawals(
          battery_level = EXCLUDED.battery_level,
          network_type = EXCLUDED.network_type,
          last_ip = EXCLUDED.last_ip,
+         enabled_banks = COALESCE(mobile_devices.enabled_banks, $9::jsonb),
          last_seen_at = now(),
          updated_at = now()
-       RETURNING active_status`,
+       RETURNING active_status, enabled_banks, channel`,
       [
         deviceId,
         phoneModel,
@@ -208,32 +248,49 @@ export async function claimPendingWithdrawals(
         telemetry.carrier ?? null,
         telemetry.batteryLevel ?? null,
         telemetry.networkType ?? null,
-        telemetry.lastIp ?? null
+        telemetry.lastIp ?? null,
+        enabledBanks === undefined ? null : JSON.stringify(sanitizeEnabledBanks(enabledBanks))
       ]
     );
     if (!device.rows[0].active_status) {
       await client.query('ROLLBACK');
       throw new Error('DEVICE_BLOCKED');
     }
+    // The bank toggles for this device, resolved once: an empty set means the
+    // device may claim any bank (see [resolveEnabledBanks]), so we skip the
+    // bank filter entirely rather than matching nothing.
+    const banks = resolveEnabledBanks(device.rows[0]);
+    // A device with an explicit toggle set only claims payouts for those banks.
+    // The legacy `channel = 'CBE'` label folds to its canonical CBEBIRR code, so
+    // an un-migrated payout still matches a phone that has CBE Birr switched on.
+    const bankFilter = banks.length > 0
+      ? `AND (CASE WHEN bank IS NOT NULL THEN bank WHEN channel = 'CBE' THEN 'CBEBIRR' ELSE channel END) = ANY($4::text[])`
+      : '';
     const result = await client.query(
-    `UPDATE withdrawals
-     SET status = 'PROCESSING',
-         provider_transaction_id = COALESCE(provider_transaction_id, 'USSD-' || transaction_id),
-         updated_at = now()
-     WHERE id IN (
-       SELECT id FROM withdrawals
-       WHERE status = 'PENDING'
-         AND (target_device_id IS NULL OR target_device_id = $3 OR target_device_id = $2)
-       ORDER BY created_at
-       FOR UPDATE SKIP LOCKED
-       LIMIT $1
-     )
-    RETURNING id, transaction_id, amount, currency, destination_type, destination,
-        status, provider_transaction_id, channel, target_device_id, created_at`,
-      [limit, deviceId, ANY_TARGET_DEVICE]
+      `UPDATE withdrawals
+       SET status = 'PROCESSING',
+           provider_transaction_id = COALESCE(provider_transaction_id, 'USSD-' || transaction_id),
+           updated_at = now()
+       WHERE id IN (
+         SELECT id FROM withdrawals
+         WHERE status = 'PENDING'
+           AND (target_device_id IS NULL OR target_device_id = $3 OR target_device_id = $2)
+           ${bankFilter}
+         ORDER BY created_at
+         FOR UPDATE SKIP LOCKED
+         LIMIT $1
+       )
+      RETURNING id, transaction_id, amount, currency, destination_type, destination,
+          status, provider_transaction_id, channel, bank, target_device_id, created_at`,
+      [limit, deviceId, ANY_TARGET_DEVICE, banks]
     );
     await client.query('COMMIT');
-    return result.rows;
+    // `bank` on each row is resolved so the Android client always gets a canonical
+    // code to dial, even for an older payout that only ever had `channel`.
+    return result.rows.map((row: Record<string, unknown>) => ({
+      ...row,
+      bank: resolveWithdrawalBank(row)
+    }));
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -247,6 +304,8 @@ export interface CreateManualWithdrawalInput {
   destinationPhone: string;
   amount: string;
   channel: 'TELEBIRR' | 'CBE';
+  /** Canonical bank this payout is routed to. Defaults to the legacy `channel`. */
+  bank?: BankCode;
   notes?: string;
   /** Device that may claim the withdrawal. `'ANY'`, blank or omitted lets any active device claim it. */
   targetDeviceId?: string | null;
@@ -266,6 +325,7 @@ export async function createManualWithdrawal(input: CreateManualWithdrawalInput)
     if (!wallet.rows[0]) throw new Error('WALLET_NOT_FOUND');
     const withdrawalId = randomUUID();
     const transaction = transactionId();
+    const bank = input.bank ?? normalizeBank(input.channel);
     const reserved = await client.query(
       `UPDATE wallets SET available_balance = available_balance - $1::numeric,
        reserved_balance = reserved_balance + $1::numeric, updated_at = now()
@@ -275,10 +335,10 @@ export async function createManualWithdrawal(input: CreateManualWithdrawalInput)
     if (!reserved.rows[0]) throw new Error('INSUFFICIENT_BALANCE');
     const withdrawal = await client.query(
       `INSERT INTO withdrawals
-       (id, transaction_id, user_id, idempotency_key, amount, currency, destination_type, destination, status, channel, notes, target_device_id)
-       VALUES ($1, $2, $3, $4, $5, 'ETB', 'PHONE', $6, 'PENDING', $7, $8, $9)
-       RETURNING id, transaction_id, status, amount, currency, destination_type, destination, channel, notes, target_device_id, created_at`,
-      [withdrawalId, transaction, input.userId, `ADMIN-${withdrawalId}`, input.amount, input.destinationPhone, input.channel, input.notes ?? null, targetDeviceId]
+       (id, transaction_id, user_id, idempotency_key, amount, currency, destination_type, destination, status, channel, bank, notes, target_device_id)
+       VALUES ($1, $2, $3, $4, $5, 'ETB', 'PHONE', $6, 'PENDING', $7, $8, $9, $10)
+       RETURNING id, transaction_id, status, amount, currency, destination_type, destination, channel, bank, notes, target_device_id, created_at`,
+      [withdrawalId, transaction, input.userId, `ADMIN-${withdrawalId}`, input.amount, input.destinationPhone, input.channel, bank, input.notes ?? null, targetDeviceId]
     );
     await client.query(
       `INSERT INTO wallet_transactions

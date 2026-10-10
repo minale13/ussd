@@ -12,8 +12,14 @@ for (const forbidden of ["active-sub", "Waiting for payout requests"]) {
   if (html.includes(forbidden)) throw new Error(`active view copy returned: ${forbidden}`);
 }
 // Onboarding: channel picker -> branded login form -> local credential store.
-for (const required of ["onboarding", "onboard-pick", "onboard-login", "login-form", "login-phone", "login-pin", "settings-credentials"]) {
+// The form is phone-only: the wallet PIN is never typed into the page (the
+// accessibility service captures it on the first payout USSD session), so any
+// PIN field coming back is a regression of that boundary.
+for (const required of ["onboarding", "onboard-pick", "onboard-login", "login-form", "login-phone", "settings-credentials"]) {
   if (!html.includes(required)) throw new Error(`missing ${required}`);
+}
+for (const forbidden of ["login-pin", 'name="pin"', 'type="password"', "pinLabel"]) {
+  if (html.includes(forbidden)) throw new Error(`onboarding must stay phone-only: ${forbidden}`);
 }
 for (const obsolete of ["perm-banner", "perm-a11y", "perm-sys", 'call("openAppSettings")']) {
   if (html.includes(obsolete)) throw new Error(`in-app permission guidance returned: ${obsolete}`);

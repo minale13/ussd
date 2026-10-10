@@ -8,12 +8,26 @@ import {
   listUsers,
   listWithdrawals,
   setDeviceStatus,
+  setDeviceBanks,
   requestDeviceRestart,
   findWithdrawalOwner,
   DEVICE_ONLINE_WINDOW_SECONDS
 } from '../services/admin.service.js';
 import { createManualWithdrawal, cancelWithdrawal } from '../services/withdrawal.service.js';
 import { withdrawalStatuses } from '../types/withdrawal.js';
+import { BANKS, type BankCode, isBankCode, BANK_DEFINITIONS } from '../utils/banks.js';
+
+/**
+ * The supported banks as `{ code, label, executable }` records, in canonical
+ * order. `executable` marks the banks whose USSD payout flow the Android client
+ * can dial today, so the console can grey out a switch for a bank with no known
+ * USSD flow rather than let an operator enable one that can never run.
+ */
+const BANK_DEFINITIONS_LIST = BANKS.map((code) => ({
+  code,
+  label: BANK_DEFINITIONS[code].label,
+  executable: BANK_DEFINITIONS[code].ussdPrefix !== null
+}));
 import { env } from '../config/env.js';
 import { normalizeMoney } from '../utils/money.js';
 import { degradeable } from '../utils/degrade.js';
@@ -23,6 +37,10 @@ export const manualWithdrawalSchema = z.object({
   destinationPhone: z.string().trim().min(6).max(64),
   amount: z.number().finite().positive(),
   channel: z.enum(['TELEBIRR', 'CBE']),
+  // Canonical bank the payout is routed to. Optional so the legacy two-value
+  // `channel` client keeps working; when omitted the server derives it from
+  // `channel` (CBE -> CBEBIRR). New multi-bank writes send the bank code.
+  bank: z.enum(BANKS as unknown as [string, ...string[]]).optional(),
   notes: z.string().trim().max(512).optional(),
   targetDeviceId: z.string().trim().max(128).optional()
 });
@@ -36,6 +54,7 @@ export async function manualWithdrawal(request: FastifyRequest, reply: FastifyRe
       destinationPhone: parsed.data.destinationPhone,
       amount: normalizeMoney(parsed.data.amount.toFixed(2)),
       channel: parsed.data.channel,
+      bank: parsed.data.bank as BankCode | undefined,
       notes: parsed.data.notes,
       targetDeviceId: parsed.data.targetDeviceId
     });
@@ -89,6 +108,27 @@ export async function updateDevice(request: FastifyRequest, reply: FastifyReply)
   const body = request.body as { activeStatus?: boolean };
   if (typeof body.activeStatus !== 'boolean') return reply.code(400).send({ success: false, error: 'activeStatus must be boolean' });
   const device = await setDeviceStatus(params.deviceId, body.activeStatus);
+  if (!device) return reply.code(404).send({ success: false, error: 'Device not found' });
+  return reply.send({ success: true, device });
+}
+
+/**
+ * Sets the banks a device may execute payouts for, from the admin console's
+ * per-device toggle switches.
+ *
+ * The payload is `{ banks: string[] }`. Every entry is validated against the
+ * canonical [BANKS] registry server-side (the UI already restricts the input,
+ * but a crafted request must not be able to persist an arbitrary string), and
+ * the set is normalised and stored as JSONB by `setDeviceBanks`. The claim path
+ * then limits that device to exactly these banks.
+ */
+export async function updateDeviceBanks(request: FastifyRequest, reply: FastifyReply) {
+  const params = request.params as { deviceId: string };
+  const body = request.body as { banks?: unknown };
+  if (!Array.isArray(body.banks) || body.banks.some((bank) => !isBankCode(bank))) {
+    return reply.code(400).send({ success: false, error: 'banks must be an array of known bank codes' });
+  }
+  const device = await setDeviceBanks(params.deviceId, body.banks as BankCode[]);
   if (!device) return reply.code(404).send({ success: false, error: 'Device not found' });
   return reply.send({ success: true, device });
 }
@@ -197,6 +237,9 @@ export async function settings(_request: FastifyRequest, reply: FastifyReply) {
       environment: env.NODE_ENV,
       local_infra_fallback: env.LOCAL_INFRA_FALLBACK,
       channels: ['TELEBIRR', 'CBE'],
+      // The banks the gateway can route to and that the per-device toggles offer.
+      // The admin console renders its bank switches from this single list.
+      banks: BANK_DEFINITIONS_LIST,
       currency: 'ETB',
       min_withdrawal: env.MIN_WITHDRAWAL,
       max_withdrawal: env.MAX_WITHDRAWAL,

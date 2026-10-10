@@ -5,8 +5,12 @@ import retrofit2.http.Header
 import retrofit2.http.Query
 
 data class PendingResponse(val success: Boolean, val withdrawals: List<PendingWithdrawal>)
-/** A claimed payout. `target_device_id` echoes the admin assignment; null or "ANY" means auto-assigned. */
-data class PendingWithdrawal(val id: String, val transaction_id: String, val amount: String, val currency: String, val destination_type: String, val destination: String, val provider_transaction_id: String?, val channel: String?, val target_device_id: String? = null)
+/**
+ * A claimed payout. `target_device_id` echoes the admin assignment; null or "ANY" means auto-assigned.
+ * `bank` is the canonical bank code the gateway routed this payout to (TELEBIRR, CBEBIRR, ...),
+ * resolved server-side even for older rows that only ever carried `channel`.
+ */
+data class PendingWithdrawal(val id: String, val transaction_id: String, val amount: String, val currency: String, val destination_type: String, val destination: String, val provider_transaction_id: String?, val channel: String?, val bank: String? = null, val target_device_id: String? = null)
 
 interface GatewayApi {
     /**
