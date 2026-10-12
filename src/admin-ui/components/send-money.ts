@@ -60,9 +60,24 @@ export function SendMoneyScreen() {
               <span class="option-copy"><strong>Telebirr</strong><small>Ethio Telecom mobile money</small></span>
               <span class="check">${icon('check', 15)}</span>
             </li>
-            <li class="option" role="option" tabindex="0" data-value="CBE" aria-selected="false">
+            <li class="option" role="option" tabindex="0" data-value="CBEBIRR" aria-selected="false">
               <span class="channel-dot cbe"></span>
               <span class="option-copy"><strong>CBE</strong><small>Commercial Bank of Ethiopia</small></span>
+              <span class="check">${icon('check', 15)}</span>
+            </li>
+            <li class="option" role="option" tabindex="0" data-value="AWASH" aria-selected="false">
+              <span class="channel-dot awash"></span>
+              <span class="option-copy"><strong>Awash Bank</strong><small>Awash Mobile Wallet (*901)</small></span>
+              <span class="check">${icon('check', 15)}</span>
+            </li>
+            <li class="option" role="option" tabindex="0" data-value="DASHEN" aria-selected="false">
+              <span class="channel-dot dashen"></span>
+              <span class="option-copy"><strong>Dashen Bank</strong><small>Dashen Mobile Plus (*996)</small></span>
+              <span class="check">${icon('check', 15)}</span>
+            </li>
+            <li class="option" role="option" tabindex="0" data-value="ABYSSINIA" aria-selected="false">
+              <span class="channel-dot abyssinia"></span>
+              <span class="option-copy"><strong>Bank of Abyssinia</strong><small>BoA Mobile Banking (*815)</small></span>
               <span class="check">${icon('check', 15)}</span>
             </li>
           </ul>

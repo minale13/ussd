@@ -325,7 +325,8 @@ export interface CreateManualWithdrawalInput {
   userId: string;
   destinationPhone: string;
   amount: string;
-  channel: 'TELEBIRR' | 'CBE';
+  /** Legacy two-value channel label (`TELEBIRR` | `CBE`). Optional for the new banks. */
+  channel?: 'TELEBIRR' | 'CBE';
   /** Canonical bank this payout is routed to. Defaults to the legacy `channel`. */
   bank?: BankCode;
   notes?: string;

@@ -4,8 +4,26 @@ export const CLIENT_SUBMIT = `
     state.channel = value;
     setText('channel-value', CHANNEL_LABELS[value] || value);
     var dot = byId('channel-dot');
-    if (dot) dot.className = 'channel-dot ' + (value === 'CBE' ? 'cbe' : 'telebirr');
+    if (dot) dot.className = 'channel-dot ' + channelDotClass(value);
     markMenuSelection('channel', value);
+  }
+
+  /** Canonical bank code → accent class for the channel selector dot. */
+  function channelDotClass(value) {
+    return {
+      TELEBIRR: 'telebirr',
+      CBEBIRR: 'cbe',
+      AWASH: 'awash',
+      DASHEN: 'dashen',
+      ABYSSINIA: 'abyssinia'
+    }[value] || 'auto';
+  }
+
+  /** Legacy two-value \`channel\` label for the payout payload; PBIs use their own \`bank\`. */
+  function legacyChannelFor(code) {
+    if (code === 'CBEBIRR') return 'CBE';
+    if (code === 'TELEBIRR') return 'TELEBIRR';
+    return undefined;
   }
 
   function setTargetDevice(value) {
@@ -124,7 +142,8 @@ export const CLIENT_SUBMIT = `
     var payload = {
       destinationPhone: phone,
       amount: amount,
-      channel: state.channel,
+      channel: legacyChannelFor(state.channel),
+      bank: state.channel,
       notes: notes && notes.value.trim() ? notes.value.trim() : undefined,
       targetDeviceId: state.targetDevice
     };

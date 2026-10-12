@@ -15,7 +15,7 @@ export const CLIENT_CORE = `
   // is still watching the screen instead of leaving the spinner forever.
   var API_TIMEOUT_MS = 10000;
   var ANY_TARGET = 'ANY';
-  var CHANNEL_LABELS = { TELEBIRR: 'Telebirr', CBE: 'CBE' };
+  var CHANNEL_LABELS = { TELEBIRR: 'Telebirr', CBEBIRR: 'CBE Birr', AWASH: 'Awash Bank', DASHEN: 'Dashen Bank', ABYSSINIA: 'Bank of Abyssinia' };
   // The banks the console offers as per-device toggles, in canonical order. Kept
   // in step with src/utils/banks.ts on the server: 'executable' marks the banks
   // whose USSD flow the Android client can dial today (all five currently are -

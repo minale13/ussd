@@ -127,6 +127,9 @@ svg{display:block}
 .channel-dot{width:8px;height:8px;border-radius:50%;flex:none}
 .channel-dot.telebirr{background:var(--neon);box-shadow:0 0 8px rgba(168,85,247,.7)}
 .channel-dot.cbe{background:var(--blue);box-shadow:0 0 8px rgba(22,131,255,.7)}
+.channel-dot.awash{background:var(--amber);box-shadow:0 0 8px rgba(255,176,32,.7)}
+.channel-dot.dashen{background:var(--danger);box-shadow:0 0 8px rgba(255,77,109,.7)}
+.channel-dot.abyssinia{background:var(--purple);box-shadow:0 0 8px rgba(124,58,237,.7)}
 .channel-dot.device{background:var(--neon-green);box-shadow:0 0 8px rgba(0,224,143,.7)}
 .channel-dot.auto{background:var(--text-3)}
 .channel-dot.offline{background:var(--text-3)}

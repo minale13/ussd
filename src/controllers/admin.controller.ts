@@ -36,7 +36,9 @@ import { z } from 'zod';
 export const manualWithdrawalSchema = z.object({
   destinationPhone: z.string().trim().min(6).max(64),
   amount: z.number().finite().positive(),
-  channel: z.enum(['TELEBIRR', 'CBE']),
+  // Legacy two-value label (`TELEBIRR` | `CBE`). Optional so the three newly
+  // supported banks can send a canonical `bank` code without a legacy channel.
+  channel: z.enum(['TELEBIRR', 'CBE']).optional(),
   // Canonical bank the payout is routed to. Optional so the legacy two-value
   // `channel` client keeps working; when omitted the server derives it from
   // `channel` (CBE -> CBEBIRR). New multi-bank writes send the bank code.
