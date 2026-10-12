@@ -3,7 +3,7 @@ import type { PoolClient } from 'pg';
 import { pool } from '../db.js';
 import { canTransition, type WithdrawalStatus } from '../types/withdrawal.js';
 import { ANY_TARGET_DEVICE, normalizeTargetDeviceId } from '../utils/target-device.js';
-import { type BankCode, normalizeBank, normalizeBankList } from '../utils/banks.js';
+import { type BankCode, normalizeBank, normalizeBankList, sanitizeEnabledBanks } from '../utils/banks.js';
 
 /**
  * Resolves the set of banks a device is allowed to execute a payout for.
@@ -202,7 +202,9 @@ export interface DeviceTelemetry {
    * not trusted from a header, so a device cannot claim to be on a network it
    * is not. The web admin device detail screen shows it.
    */
+
   lastIp?: string | null;
+
 }
 
 export async function claimPendingWithdrawals(

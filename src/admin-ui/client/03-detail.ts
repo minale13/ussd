@@ -55,9 +55,9 @@ export const CLIENT_DETAIL = `
   /**
    * The set of banks a device currently has switched on.
    *
-   * Mirrors the server's `resolveEnabledBanks`: a device configured with an
-   * explicit `enabled_banks` list is limited to exactly that set; a device that
-   * predates the toggles falls back to its single legacy `channel` (the `CBE`
+   * Mirrors the server's \`resolveEnabledBanks\`: a device configured with an
+   * explicit \`enabled_banks\` list is limited to exactly that set; a device that
+   * predates the toggles falls back to its single legacy \`channel\` (the \`CBE\`
    * label read as CBE Birr) so an un-migrated phone keeps working. An empty
    * result means "not configured yet", which the switches show as all-off until
    * an operator makes a choice.

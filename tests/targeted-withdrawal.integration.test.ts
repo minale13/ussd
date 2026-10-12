@@ -33,11 +33,11 @@ suite('targeted device withdrawal claims', () => {
       withdrawalId = withdrawal.id as string;
       expect(withdrawal.target_device_id).toBe(targetDevice);
 
-      const otherDeviceClaims = await claimPendingWithdrawals(otherDevice, 'Other Device', 5);
-      expect(otherDeviceClaims.filter((row) => row.id === withdrawalId)).toHaveLength(0);
+      const otherDeviceClaims = await claimPendingWithdrawals(otherDevice, 'Other Device', 5) as any;
+      expect(otherDeviceClaims.filter((row: any) => row.id === withdrawalId)).toHaveLength(0);
 
-      const targetDeviceClaims = await claimPendingWithdrawals(targetDevice, 'Target Device', 5);
-      const claimed = targetDeviceClaims.find((row) => row.id === withdrawalId);
+      const targetDeviceClaims = await claimPendingWithdrawals(targetDevice, 'Target Device', 5) as any;
+      const claimed = targetDeviceClaims.find((row: any) => row.id === withdrawalId);
       expect(claimed?.target_device_id).toBe(targetDevice);
       expect(claimed?.status).toBe('PROCESSING');
     } finally {
@@ -72,7 +72,7 @@ suite('targeted device withdrawal claims', () => {
       withdrawalId = withdrawal.id as string;
       expect(withdrawal.target_device_id).toBeNull();
 
-      const claimed = (await claimPendingWithdrawals(anyDevice, 'Any Device', 5)).find((row) => row.id === withdrawalId);
+      const claimed = (await claimPendingWithdrawals(anyDevice, 'Any Device', 5) as any).find((row: any) => row.id === withdrawalId);
       expect(claimed?.status).toBe('PROCESSING');
       expect(claimed?.target_device_id).toBeNull();
     } finally {
