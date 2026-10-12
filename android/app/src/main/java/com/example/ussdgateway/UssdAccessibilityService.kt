@@ -58,8 +58,14 @@ class UssdAccessibilityService : AccessibilityService() {
         val text = (event.text ?: emptyList<CharSequence>()).joinToString(" ") { it.toString() }.trim()
         if (text.isNotEmpty()) {
             val lower = text.lowercase()
-            if (listOf("successful", "completed", "success", "thank you").any(lower::contains) || listOf("failed", "declined", "unsuccessful", "insufficient").any(lower::contains)) {
-                val failed = listOf("failed", "declined", "unsuccessful", "insufficient").any(lower::contains)
+            // Response parsing shared by all five banks: the telebirr/CBE wording
+            // plus the phrasing the bank menus answer with (an incorrect or wrong
+            // PIN the injected value was rejected with, a recipient that was not
+            // found, an expired session). A PIN rejection only ever appears when
+            // the injected value was truly wrong, so treating it as terminal can
+            // never abort a session that would otherwise have succeeded.
+            if (SUCCESS_WORDS.any(lower::contains) || FAILURE_WORDS.any(lower::contains)) {
+                val failed = FAILURE_WORDS.any(lower::contains)
                 // The session ended: a completed payout proves the PIN the user
                 // typed by hand was accepted, so it is sealed in now; a failed
                 // one discards the attempt so a mistyped value is never stored.
@@ -122,11 +128,21 @@ class UssdAccessibilityService : AccessibilityService() {
         val prompt = promptText(root)
         if (prompt.isEmpty()) return
         val lower = prompt.lowercase()
+        val flow = UssdFlows.get(getValue("bank"))
         // PIN prompts win and are matched at any step: a combined confirmation
         // ("… to 09… number. Enter PIN") must get the PIN rather than the phone
         // number, and a menu may ask for the PIN again after a failed attempt.
+        // One rule covers every bank's wording: Telebirr/CBE "Enter PIN", Awash's
+        // "Enter your PIN correctly", Dashen's "enter PIN to login" and BoA's
+        // "Enter your PIN" all contain the same keyword, so the value captured on
+        // this device is auto-injected into all five flows identically.
         val value = when {
             PIN_PROMPTS.any(lower::contains) -> storedPin()
+            // Menu-driven flows ask for the recipient, the amount and a
+            // confirmation at depths the step counter cannot predict, and their
+            // menus must be navigated by reply - the bank's recipe answers first,
+            // then the shared prompts follow at any step.
+            flow.menuDriven -> menuDrivenAnswer(flow, lower)
             step == 0 && DESTINATION_PROMPTS.any(lower::contains) -> getValue("destination")
             step <= 1 && AMOUNT_PROMPTS.any(lower::contains) -> getValue("amount")
             else -> null
@@ -143,6 +159,24 @@ class UssdAccessibilityService : AccessibilityService() {
             step++
         }
     }
+
+    /**
+     * Answers a prompt inside a menu-driven bank session (Awash, Dashen, Bank of
+     * Abyssinia).
+     *
+     * The bank's recipe handles menus and confirmations first - it knows the
+     * option numbers of its published flow - then the shared destination and
+     * amount prompts follow, matched on wording at any depth because these flows
+     * re-ask for them after the PIN login, well past the step the legacy gating
+     * allows. A prompt nothing matches is left unanswered rather than guessed at,
+     * so a mismatch stalls visibly on the phone instead of typing a wrong value
+     * into a live transfer.
+     */
+    private fun menuDrivenAnswer(flow: UssdFlow, lower: String): String? =
+        flow.menuReply(lower)
+            ?: if (DESTINATION_PROMPTS.any(lower::contains)) getValue("destination")
+            else if (AMOUNT_PROMPTS.any(lower::contains)) getValue("amount")
+            else null
 
     private fun getValue(key: String) = getSharedPreferences("ussd", MODE_PRIVATE).getString(key, "") ?: ""
 
@@ -353,6 +387,18 @@ class UssdAccessibilityService : AccessibilityService() {
         val PIN_PROMPTS = listOf("pin", "passcode", "secret code", "password")
         val DESTINATION_PROMPTS = listOf("phone", "mobile", "number")
         val AMOUNT_PROMPTS = listOf("amount", "how much", "value")
+
+        /** Wording that ends a session as settled, across all five banks. */
+        val SUCCESS_WORDS = listOf("successful", "completed", "success", "thank you")
+        /**
+         * Wording that ends a session as failed: the original telebirr/CBE set
+         * plus what the bank flows answer with - "incorrect PIN", "wrong PIN",
+         * "account not found", a declined or expired session.
+         */
+        val FAILURE_WORDS = listOf(
+            "failed", "declined", "unsuccessful", "insufficient",
+            "incorrect", "wrong", "not found", "denied", "expired",
+        )
 
         /** Labels of the affirmative button across AOSP and OEM USSD skins. */
         val SUBMIT_LABELS = setOf("send", "reply", "ok", "okay", "continue", "submit", "confirm", "next", "done", "enter")

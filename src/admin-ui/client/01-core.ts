@@ -18,16 +18,18 @@ export const CLIENT_CORE = `
   var CHANNEL_LABELS = { TELEBIRR: 'Telebirr', CBE: 'CBE' };
   // The banks the console offers as per-device toggles, in canonical order. Kept
   // in step with src/utils/banks.ts on the server: 'executable' marks the banks
-  // whose USSD flow the Android client can dial today, so a switch for a bank
-  // with no known USSD flow is rendered disabled rather than silently doing
-  // nothing on the handset.
+  // whose USSD flow the Android client can dial today (all five currently are -
+  // Telebirr and CBE Birr first, Awash, Dashen and Bank of Abyssinia with their
+  // *901 / *996 / *815 menus), so a switch for a future bank with no known USSD
+  // flow would be rendered disabled rather than silently doing nothing on the
+  // handset.
   var BANK_LABELS = { TELEBIRR: 'Telebirr', CBEBIRR: 'CBE Birr', AWASH: 'Awash Bank', DASHEN: 'Dashen Bank', ABYSSINIA: 'Bank of Abyssinia' };
   var BANKS = [
     { code: 'TELEBIRR', label: 'Telebirr', executable: true },
     { code: 'CBEBIRR', label: 'CBE Birr', executable: true },
-    { code: 'AWASH', label: 'Awash Bank', executable: false },
-    { code: 'DASHEN', label: 'Dashen Bank', executable: false },
-    { code: 'ABYSSINIA', label: 'Bank of Abyssinia', executable: false }
+    { code: 'AWASH', label: 'Awash Bank', executable: true },
+    { code: 'DASHEN', label: 'Dashen Bank', executable: true },
+    { code: 'ABYSSINIA', label: 'Bank of Abyssinia', executable: true }
   ];
   var MENUS = {
     channel: { dropdown: 'channel-dropdown', button: 'channel-button', menu: 'channel-menu' },

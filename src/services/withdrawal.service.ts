@@ -23,6 +23,26 @@ export function resolveEnabledBanks(row: { enabled_banks?: unknown; channel?: un
 }
 
 /**
+ * The bank toggles currently stored for a device, in canonical order.
+ *
+ * Read straight from the fleet row through [resolveEnabledBanks], so it honours
+ * the same fallbacks: an explicit `enabled_banks` set wins, an un-migrated phone
+ * resolves to its legacy `channel`, and a device with neither (or one that does
+ * not exist yet) returns an empty list, which every consumer reads as "not
+ * configured" and treats as "any bank allowed" rather than stranding the phone.
+ *
+ * The pending-claim endpoint echoes this list with each claim so the Android
+ * worker can re-check the toggles on the handset itself before it dials.
+ */
+export async function getDeviceEnabledBanks(deviceId: string): Promise<BankCode[]> {
+  const result = await pool.query(
+    'SELECT enabled_banks, channel FROM mobile_devices WHERE device_id = $1',
+    [deviceId]
+  );
+  return resolveEnabledBanks(result.rows[0] ?? {});
+}
+
+/**
  * The bank a withdrawal is routed to. New rows carry `bank`; older rows only have
  * the legacy `channel`, which is aliased (CBE -> CBEBIRR). Never null on a real
  * payout: an unset value falls back to Telebirr, matching how the Android client

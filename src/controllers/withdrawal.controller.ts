@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '../config/env.js';
-import { cancelWithdrawal, claimPendingWithdrawals, createWithdrawal, getWithdrawal } from '../services/withdrawal.service.js';
+import { cancelWithdrawal, claimPendingWithdrawals, createWithdrawal, getDeviceEnabledBanks, getWithdrawal } from '../services/withdrawal.service.js';
 import { moneyToCents, normalizeMoney } from '../utils/money.js';
 
 export const createSchema = z.object({
@@ -96,9 +96,18 @@ export async function pending(request: FastifyRequest, reply: FastifyReply) {
     lastIp: typeof request.ip === 'string' ? request.ip.slice(0, 64) : null,
   };
   try {
+    const withdrawals = await claimPendingWithdrawals(deviceId, phoneModel, limit, telemetry);
+    // The claim just upserted this device's fleet row, so its bank toggles are
+    // readable now. They ride along with every claim: the Android background
+    // worker re-checks them locally before dialling, so a payout claimed moments
+    // before an operator flips a switch never executes on the handset. An empty
+    // list means "not configured" and lets the worker run any bank, mirroring
+    // the claim filter above.
+    const enabledBanks = await getDeviceEnabledBanks(deviceId);
     return reply.send({
       success: true,
-      withdrawals: await claimPendingWithdrawals(deviceId, phoneModel, limit, telemetry),
+      withdrawals,
+      enabled_banks: enabledBanks,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'DEVICE_BLOCKED') return reply.code(403).send({ success: false, error: 'Device is blocked' });

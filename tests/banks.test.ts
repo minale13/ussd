@@ -28,13 +28,15 @@ describe('bank registry', () => {
     expect(bankLabel('WESTERNUNION')).toBe('WESTERNUNION');
   });
 
-  it('knows a USSD prefix only for the banks the handset can dial', () => {
+  it('knows a USSD prefix for every bank the handset can dial', () => {
     expect(ussdPrefixFor('TELEBIRR')).toBe('*806#');
     expect(ussdPrefixFor('CBEBIRR')).toBe('*889#');
-    // No known payout flow yet, so the client must skip rather than mis-dial.
-    expect(ussdPrefixFor('AWASH')).toBeNull();
-    expect(ussdPrefixFor('DASHEN')).toBeNull();
-    expect(ussdPrefixFor('ABYSSINIA')).toBeNull();
+    // The three banks added alongside CBE and Telebirr carry the prefix each
+    // bank publishes for its USSD menu, so every supported bank is executable.
+    expect(ussdPrefixFor('AWASH')).toBe('*901#');
+    expect(ussdPrefixFor('DASHEN')).toBe('*996#');
+    expect(ussdPrefixFor('ABYSSINIA')).toBe('*815#');
+    expect(BANKS.every((code) => BANK_DEFINITIONS[code].ussdPrefix !== null)).toBe(true);
   });
 
   it('recognises only canonical codes', () => {

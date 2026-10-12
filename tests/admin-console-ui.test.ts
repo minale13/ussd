@@ -351,8 +351,9 @@ describe('admin console data binding', () => {
     expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
     expect(switches[1]!.getAttribute('aria-checked')).toBe('true');
     expect(switches[2]!.getAttribute('aria-checked')).toBe('false');
-    // A bank with no USSD flow yet is rendered but disabled.
-    expect((switches[2] as HTMLButtonElement).disabled).toBe(true);
+    // Every supported bank now has a USSD flow the handset can dial
+    // (*901 / *996 / *815 for Awash, Dashen and Abyssinia), so no switch is inert.
+    expect(switches.every((s) => !(s as HTMLButtonElement).disabled)).toBe(true);
     expect(ui.text('bank-count')).toBe('2 on');
   }, DOM_TIMEOUT);
 

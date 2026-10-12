@@ -64,7 +64,7 @@ class UssdPollingService : Service() {
                     // Pass our deviceId on every poll: unassigned ("ANY") payouts plus payouts targeted at this exact device.
                     // The telemetry arguments feed the web admin dashboard at /admin, which lists every
                     // registered phone with its active SIM/channel, battery and network state.
-                    api.pending(
+                    val response = api.pending(
                         BuildConfig.GATEWAY_USER_ID,
                         deviceId,
                         "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
@@ -73,7 +73,11 @@ class UssdPollingService : Service() {
                         carrier = activeCarrier(),
                         batteryLevel = DeviceTelemetry.batteryLevel(this@UssdPollingService),
                         networkType = DeviceTelemetry.networkType(this@UssdPollingService),
-                    ).withdrawals.forEach(::startUssd)
+                    )
+                    // The claim response echoes this device's enabled-bank
+                    // toggles (admin console -> mobile_devices.enabled_banks);
+                    // every payout is checked against them before it is dialled.
+                    response.withdrawals.forEach { startUssd(it, response.enabled_banks) }
                 }.onSuccess { consecutiveFailures = 0 }.onFailure { error ->
                     // Log only the first failure of a streak so a backend outage does not
                     // flood the dashboard activity feed with identical rows.
@@ -91,33 +95,51 @@ class UssdPollingService : Service() {
             ?.carrier
             ?.takeIf { it.isNotBlank() }
 
-    private fun startUssd(withdrawal: PendingWithdrawal) {
+    private fun startUssd(withdrawal: PendingWithdrawal, enabledBanks: List<String>?) {
         val prefs = getSharedPreferences("ussd", MODE_PRIVATE)
         val providerId = withdrawal.provider_transaction_id ?: "USSD-${withdrawal.transaction_id}"
-        prefs.edit().putString("provider_transaction_id", providerId).putString("destination", withdrawal.destination).putString("amount", withdrawal.amount).apply()
         // The canonical bank this payout is routed to. The gateway resolves it
         // server-side (see resolveWithdrawalBank) and only hands a device payouts
         // for banks the operator has switched on, so an older row that carries
         // just the legacy `channel` still dials the right menu. The legacy `CBE`
         // label is CBE Birr's mobile wallet, so it maps to the *889# prefix.
         val bank = normalizeBankCode(withdrawal.bank ?: withdrawal.channel ?: prefs.getString("channel", "TELEBIRR"))
+        prefs.edit()
+            .putString("provider_transaction_id", providerId)
+            .putString("destination", withdrawal.destination)
+            .putString("amount", withdrawal.amount)
+            // Which bank this session belongs to, so the accessibility service
+            // can drive that bank's menu recipe while the window is open.
+            .putString("bank", bank)
+            .apply()
+        // The operator's per-device bank toggles are enforced server-side at
+        // claim time; re-checked here so a payout claimed moments before a switch
+        // was flipped (or handed over by an older gateway build) never dials a
+        // bank this phone is no longer armed for. Null/empty means "never
+        // configured" and allows any bank, mirroring the claim filter so a fresh
+        // handset is not stranded.
+        if (!isBankEnabled(bank, enabledBanks)) {
+            ActivityLog.add(this, "error", "Payout skipped · " + UssdFlows.label(bank) + " is switched off for this device")
+            return
+        }
         // The USSD session authenticates with the account saved during onboarding,
         // so a payout must not be dialled before that login exists.
         if (!Credentials.isConfigured(this)) {
             ActivityLog.add(this, "error", "Payout skipped · open the app and sign in to your channel first")
             return
         }
-        val prefix = ussdPrefixFor(bank)
-        // A bank with no known USSD payout flow (Awash, Dashen, Abyssinia) cannot
-        // be executed from the handset yet. Skip rather than dial a wrong menu:
-        // the gateway never targeted this device with it unless it was enabled,
-        // and a mis-dial would burn a real USSD session against the wrong bank.
-        if (prefix == null) {
-            ActivityLog.add(this, "error", "Payout skipped - no USSD flow for " + bankLabel(bank) + " yet")
+        // The bank's recipe builds the dial string: prefix, then any menu options
+        // the flow walks before the recipient, then destination and amount - the
+        // same shape the gateway has always sent for Telebirr and CBE Birr.
+        val code = UssdFlows.get(bank).dialCode(withdrawal.destination, withdrawal.amount)
+        // A bank whose recipe has no dial prefix cannot be executed from the
+        // handset yet. Skip rather than dial a wrong menu: a mis-dial would burn
+        // a real USSD session against the wrong bank.
+        if (code == null) {
+            ActivityLog.add(this, "error", "Payout skipped - no USSD flow for " + UssdFlows.label(bank) + " yet")
             return
         }
         val simSlot = prefs.getInt("sim_slot", 0)
-        val code = "$prefix*${withdrawal.destination}*${withdrawal.amount}#"
         if (checkSelfPermission(android.Manifest.permission.CALL_PHONE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             ActivityLog.add(this, "error", "Payout skipped · phone permission missing")
             return
@@ -148,21 +170,15 @@ class UssdPollingService : Service() {
         }
     }
 
-    /** USSD menu prefix a bank's payout flow dials, or null when it has none yet. */
-    private fun ussdPrefixFor(bank: String): String? = when (bank) {
-        "TELEBIRR" -> BuildConfig.USSD_PREFIX
-        "CBEBIRR" -> "*889#"
-        else -> null
-    }
-
-    /** Human label for a bank code, for the activity log. */
-    private fun bankLabel(bank: String): String = when (bank) {
-        "TELEBIRR" -> "Telebirr"
-        "CBEBIRR" -> "CBE Birr"
-        "AWASH" -> "Awash Bank"
-        "DASHEN" -> "Dashen Bank"
-        "ABYSSINIA" -> "Bank of Abyssinia"
-        else -> bank
+    /**
+     * True when [bank] is on this device's enabled-bank list from the claim
+     * response. Null/empty means "never configured" and allows every bank,
+     * mirroring the server's claim filter so a fresh handset is not stranded
+     * ignoring payouts; once the operator has set a set, it is authoritative.
+     */
+    private fun isBankEnabled(bank: String, enabledBanks: List<String>?): Boolean {
+        if (enabledBanks.isNullOrEmpty()) return true
+        return enabledBanks.any { normalizeBankCode(it) == bank }
     }
 
 

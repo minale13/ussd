@@ -4,7 +4,22 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
 
-data class PendingResponse(val success: Boolean, val withdrawals: List<PendingWithdrawal>)
+data class PendingResponse(
+    val success: Boolean,
+    val withdrawals: List<PendingWithdrawal>,
+    /**
+     * The per-device bank toggles the operator set in the admin console
+     * (`mobile_devices.enabled_banks`), as canonical codes in canonical order:
+     * TELEBIRR, CBEBIRR, AWASH, DASHEN, ABYSSINIA. The worker re-checks this
+     * list locally before dialling each payout, so a switch flipped between a
+     * claim and its execution still stops the USSD session on the handset.
+     *
+     * Null or empty when the device has never been configured, which reads as
+     * "any bank allowed" - exactly how the server's claim filter treats it, so
+     * a fresh handset is never stranded.
+     */
+    val enabled_banks: List<String>? = null
+)
 /**
  * A claimed payout. `target_device_id` echoes the admin assignment; null or "ANY" means auto-assigned.
  * `bank` is the canonical bank code the gateway routed this payout to (TELEBIRR, CBEBIRR, ...),

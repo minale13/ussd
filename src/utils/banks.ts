@@ -27,9 +27,13 @@ interface BankDefinition {
 export const BANK_DEFINITIONS: Record<BankCode, BankDefinition> = {
   TELEBIRR: { label: 'Telebirr', ussdPrefix: '*806#' },
   CBEBIRR: { label: 'CBE Birr', ussdPrefix: '*889#', aliases: ['CBE'] },
-  AWASH: { label: 'Awash Bank', ussdPrefix: null },
-  DASHEN: { label: 'Dashen Bank', ussdPrefix: null },
-  ABYSSINIA: { label: 'Bank of Abyssinia', ussdPrefix: null }
+  // The three banks added alongside CBE and Telebirr, with the prefix each
+  // bank publishes for its USSD menu: Awash Mobile Wallet (*901), Dashen
+  // Mobile Plus (*996) and BoA mobile banking (*815). All three now have a
+  // flow the Android client can dial, so they count as executable.
+  AWASH: { label: 'Awash Bank', ussdPrefix: '*901#' },
+  DASHEN: { label: 'Dashen Bank', ussdPrefix: '*996#' },
+  ABYSSINIA: { label: 'Bank of Abyssinia', ussdPrefix: '*815#' }
 };
 
 /** Default bank applied when a device has not been configured with a preference. */
