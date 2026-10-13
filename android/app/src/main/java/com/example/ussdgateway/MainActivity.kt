@@ -52,6 +52,12 @@ class MainActivity : ComponentActivity() {
         // Draw first so the system dialogs land on top of real content: the setup
         // card on a first launch, the dashboard once the service is already on.
         route()
+        // Announce this handset to the gateway straight away. Registration is
+        // deliberately independent of onboarding and of the accessibility grant:
+        // a phone should appear in the admin console the moment it is installed,
+        // not only after the operator has finished setting it up. Off-thread and
+        // best-effort, so it can never delay the first frame or crash the launch.
+        DeviceRegistrar.register(this)
         requestRuntimePermissions()
     }
 
@@ -270,6 +276,12 @@ class MainActivity : ComponentActivity() {
                 return
             }
             ActivityLog.add(this@MainActivity, "success", "Logged in to ${channelLabel(channel)} · +251 $normalized")
+            // Onboarding just finished, so the phone number the console shows is
+            // now known: force a second registration rather than relying on the
+            // one made at process start, which could only carry the model. The
+            // endpoint merges a sparse payload, so this updates the row in place
+            // instead of creating a second device.
+            DeviceRegistrar.register(this@MainActivity, force = true)
             // Saving the login ends onboarding: bring the polling listener up in
             // the same call so the dashboard switches straight to its running,
             // minimal view without asking for a second tap.

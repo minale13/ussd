@@ -11,6 +11,7 @@ import { appAgentStyles, appAgentUi } from './controllers/app-ui.controller.js';
 import { adminLogin } from './controllers/admin-login.controller.js';
 import { eventStream } from './controllers/admin-events.controller.js';
 import { smsCallback, smsEvents, authenticateGatewayDevice } from './controllers/sms.controller.js';
+import * as device from './controllers/device.controller.js';
 import { env, envResolution } from './config/env.js';
 import { authenticateAdmin } from './middleware/admin-auth.js';
 
@@ -101,6 +102,15 @@ export function buildApp() {
   // Inbound SMS forwarded by the Android gateway. Authenticated with the same
   // device identity the phone already uses for polling.
   app.post('/api/gateway/sms-callback', { preHandler: authenticateGatewayDevice }, smsCallback);
+
+  // Self-report: the handset registers the moment the app starts, and again the
+  // moment phone-number onboarding completes. Until this existed a device only
+  // reached the console as a side effect of its first withdrawal poll, which
+  // cannot happen until onboarding, the accessibility grant and both dangerous
+  // permissions are all done - so a freshly installed phone was invisible to
+  // the operator for the whole of its setup. Same trust model as the poll:
+  // gateway `x-user-id` plus the device's own `x-device-id`.
+  app.post('/api/devices/register', { preHandler: authenticateGatewayDevice }, device.register);
 
   // SMS activity for the console, and the live event stream that pushes new
   // messages to an open dashboard. Both are admin-authenticated.

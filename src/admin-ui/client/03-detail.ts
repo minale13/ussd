@@ -35,6 +35,10 @@ export const CLIENT_DETAIL = `
     if (network) network.outerHTML = networkCell(device.network_type).replace('<span class="net', '<span id="detail-network" class="net');
     setText('detail-network-type', device.network_type || 'Not reported');
     setText('detail-sim', (device.channel ? (CHANNEL_LABELS[device.channel] || device.channel) + ' / ' : '') + simText(device));
+    // Reported by the handset's own registration, not by the poll: it is filled
+    // in the moment onboarding saves it, and stays "Not reported" for a phone
+    // that was never configured rather than being guessed at from a SIM slot.
+    setText('detail-phone', device.phone_number || 'Not reported');
     setText('detail-last-seen', timeAgo(device.last_seen_at));
     setText('detail-ip', device.last_ip || 'Not reported');
     setText('detail-version', device.app_version || 'Not reported');

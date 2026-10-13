@@ -36,10 +36,27 @@ export const DEVICE_ONLINE_WINDOW_SECONDS = 90;
 /**
  * Fleet columns the console renders. `online` is derived from `last_seen_at`
  * in SQL so the API and the dashboard can never disagree about it.
+ *
+ * The window is a *placeholder*, not a baked-in `$1`: the same columns are
+ * spliced into statements that already use `$1`/`$2` for their own arguments
+ * (`setDeviceStatus`, the registration upsert, …), and a second, competing `$1`
+ * would make Postgres infer `device_id` as the `secs` argument of
+ * `make_interval` - a parse error, or worse, a silently wrong window. Each call
+ * site therefore passes the position its `DEVICE_ONLINE_WINDOW_SECONDS` value
+ * actually occupies.
+ *
+ * `phone_number` is the subscriber number collected during onboarding; it is
+ * written by `POST /api/devices/register` and never by a poll, so an older
+ * device row simply reports null and the console shows "Not reported".
  */
-const DEVICE_COLUMNS = `device_id, phone_model, active_status, sim_slot, channel, carrier,
+export function deviceColumns(windowParam = '$1'): string {
+  if (!/^\$[1-9][0-9]*$/.test(windowParam)) {
+    throw new Error(`Unsafe SQL parameter placeholder: ${windowParam}`);
+  }
+  return `device_id, phone_model, phone_number, active_status, sim_slot, channel, carrier,
   battery_level, network_type, app_version, last_ip, last_seen_at, created_at, updated_at, enabled_banks,
-  (last_seen_at > now() - make_interval(secs => $1)) AS online`;
+  (last_seen_at > now() - make_interval(secs => ${windowParam})) AS online`;
+}
 
 /**
  * Every registered Android device, most recently seen first, with the fleet
@@ -47,7 +64,7 @@ const DEVICE_COLUMNS = `device_id, phone_model, active_status, sim_slot, channel
  */
 export async function listDevices(onlineWindowSeconds = DEVICE_ONLINE_WINDOW_SECONDS) {
   const result = await pool.query(
-    `SELECT ${DEVICE_COLUMNS} FROM mobile_devices ORDER BY last_seen_at DESC`,
+    `SELECT ${deviceColumns('$1')} FROM mobile_devices ORDER BY last_seen_at DESC`,
     [onlineWindowSeconds]
   );
   return result.rows;
@@ -57,7 +74,7 @@ export async function setDeviceStatus(deviceId: string, activeStatus: boolean) {
   const result = await pool.query(
     `UPDATE mobile_devices SET active_status = $2, updated_at = now()
      WHERE device_id = $1
-     RETURNING ${DEVICE_COLUMNS}`,
+     RETURNING ${deviceColumns('$3')}`,
     [deviceId, activeStatus, DEVICE_ONLINE_WINDOW_SECONDS]
   );
   return result.rows[0];
@@ -77,7 +94,7 @@ export async function setDeviceBanks(deviceId: string, banks: readonly BankCode[
   const result = await pool.query(
     `UPDATE mobile_devices SET enabled_banks = $2::jsonb, updated_at = now()
      WHERE device_id = $1
-     RETURNING ${DEVICE_COLUMNS}`,
+     RETURNING ${deviceColumns('$3')}`,
     [deviceId, JSON.stringify(enabled), DEVICE_ONLINE_WINDOW_SECONDS]
   );
   return result.rows[0];
@@ -98,7 +115,7 @@ export async function requestDeviceRestart(deviceId: string) {
     `UPDATE mobile_devices
         SET last_ip = NULL, network_type = NULL, last_seen_at = now() - make_interval(secs => $2), updated_at = now()
       WHERE device_id = $1
-      RETURNING ${DEVICE_COLUMNS}`,
+      RETURNING ${deviceColumns('$2')}`,
     [deviceId, DEVICE_ONLINE_WINDOW_SECONDS]
   );
   return result.rows[0];

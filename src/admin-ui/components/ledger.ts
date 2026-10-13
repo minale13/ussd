@@ -135,6 +135,10 @@ export function DeviceDetailScreen() {
         <span class="row-value" id="detail-sim">—</span>
       </div>
       <div class="row">
+        <span class="row-label">${icon('phone', 16)}<span>Phone number</span></span>
+        <span class="row-value is-muted" id="detail-phone">Not reported</span>
+      </div>
+      <div class="row">
         <span class="row-label">${icon('clock', 16)}<span>Last seen</span></span>
         <span class="row-value" id="detail-last-seen">—</span>
       </div>

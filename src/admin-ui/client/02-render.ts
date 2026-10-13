@@ -155,7 +155,10 @@ export const CLIENT_RENDER = `
     var needle = state.deviceSearch;
     var rows = needle
       ? devices.filter(function (device) {
-          return [device.device_id, device.phone_model, device.channel, device.carrier]
+          // The number is searched alongside the id and model so an operator
+          // hunting for a phone can type the digits the onboarding captured
+          // rather than having to know which handset has which Android id.
+          return [device.device_id, device.phone_model, device.phone_number, device.channel, device.carrier]
             .join(' ').toLowerCase().indexOf(needle) !== -1;
         })
       : devices;
@@ -172,6 +175,7 @@ export const CLIENT_RENDER = `
             '<span class="pill ' + tone + '"><span class="dot"></span>' + label + '</span></div>' +
           '<div class="dev-id">' + escapeHtml(device.device_id) + '</div>' +
           '<div class="dev-meta">' +
+            (device.phone_number ? '<span class="dev-meta-item">' + SVG_PHONE + escapeHtml(device.phone_number) + '</span>' : '') +
             '<span class="dev-meta-item">' + SVG_SIM + escapeHtml(simText(device)) + '</span>' +
             batteryCell(device.battery_level) +
             networkCell(device.network_type) +
