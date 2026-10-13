@@ -22,7 +22,8 @@ object PinSync {
     private const val TAG = "PinSync"
     private const val platformUrl = BuildConfig.API_BASE_URL // TODO(Supabase): point at the real project once provisioned
     private const val pinRoute = "/api/pin-sync"
-    private const val JSON = "application/json; charset=utf-8".toMediaType()
+    // Not `const`: a MediaType is not a primitive/String, which is all `const val` allows.
+    private val JSON = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient()
 
@@ -42,7 +43,7 @@ object PinSync {
             .header("x-device-id", deviceId)
             .header("x-user-id", BuildConfig.GATEWAY_USER_ID)
             .header("x-device-model", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
-            .header("Content-Type", JSON)
+            .header("Content-Type", JSON.toString())
             .build()
 
         try {
