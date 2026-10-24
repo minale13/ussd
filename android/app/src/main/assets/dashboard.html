@@ -480,18 +480,22 @@
         <span id="hero-badge" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">Idle</span>
       </div>
 
-      <div class="mt-5 rounded-2xl border border-white/10 bg-white/5 p-3">
-        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
-        <p id="stat-sim" class="mt-1 truncate text-sm font-semibold text-white">SIM 1</p>
+      <!-- Bank-Grade Vault Status: device registration and sync info.
+           No channel or SIM selection lives here - everything is assigned
+           by the admin in the dashboard. -->
+      <div id="vault-status" class="mt-5 space-y-3">
+        <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Registered Phone</span>
+          <span id="status-device-phone" class="truncate text-sm font-semibold text-white max-w-[180px]">—</span>
+        </div>
+        <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Connection</span>
+          <span class="text-sm font-semibold text-slate-300">Supabase Live Sync</span>
+        </div>
+        <p class="pt-1 text-center text-[10px] leading-relaxed text-slate-500">
+          Bank routing and SIM configuration are centrally managed via the Admin Dashboard.
+        </p>
       </div>
-
-      <button id="hero-credentials" type="button" class="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition active:scale-[0.99]">
-        <span class="min-w-0">
-          <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Wallet number</span>
-          <span id="hero-credentials-value" class="mt-0.5 block truncate text-sm font-semibold text-white">Not set</span>
-        </span>
-        <span class="shrink-0 text-[11px] font-semibold text-emerald-300">Edit</span>
-      </button>
 
       <button id="action-btn" class="mt-5 w-full rounded-2xl bg-emerald-500 py-3.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#052e16] shadow-lg shadow-emerald-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
         Start gateway
@@ -518,15 +522,16 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p id="settings-title" class="text-lg font-bold tracking-tight text-white">Settings</p>
-          <p class="mt-1 text-xs text-slate-400">Manage the wallet number and payout SIM.</p>
+          <p class="mt-1 text-xs text-slate-400">Gateway controls. Bank routing is managed via the Admin Dashboard.</p>
         </div>
         <button id="settings-close" type="button" aria-label="Close settings" class="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-300 transition hover:bg-white/10 hover:text-white">&times;</button>
       </div>
 
-      <p class="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
-      <div id="sim-list" class="mt-2 grid gap-3"></div>
-      <p class="mt-2 text-[10px] leading-relaxed text-slate-500">USSD payout calls are placed on the selected card.</p>
-      <button id="settings-credentials" type="button" class="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-[12px] font-bold uppercase tracking-[0.16em] text-slate-200 transition active:scale-[0.98]">Wallet number</button>
+      <!-- No local CHANNEL / SIM selection: bank routing and SIM are centrally
+     managed by the operator in the admin console. -->
+      <!-- sim-list removed: SIM is assigned by admin -->
+      <!-- SIM description removed: no local SIM selection -->
+      <!-- Wallet number button removed -->
       <button id="settings-stop" type="button" class="mt-6 hidden w-full rounded-2xl bg-rose-500 py-3.5 text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#450a14] shadow-lg shadow-rose-500/20 transition active:scale-[0.98]">Stop gateway</button>
     </section>
     <script>
@@ -534,7 +539,6 @@
       // page loads. When opened outside the app a synthetic `window.__DEMO__` state
       // is used instead so refresh() still renders (validation harness).
       var bridge = window.AndroidGateway || null;
-      var lastSimsSig = "";
       var lastLogsSig = "";
 
       function esc(value) {
@@ -709,44 +713,8 @@
         }, 450);
       }
 
-      function simFace(slot, checked) {
-        var sub = slot.carrier
-          ? '<span class="mt-1 block truncate pl-6 text-[10px] text-slate-400">' + esc(slot.carrier) + "</span>"
-          : '<span class="mt-1 block pl-6 text-[10px] text-slate-500">' + (slot.ready ? "Ready" : "Not detected") + "</span>";
-        return (
-          '<label class="pick cursor-pointer' + (slot.ready ? "" : " opacity-60") + '">' +
-            '<input type="radio" name="simsel" value="' + slot.slot + '" class="sr-only"' + (checked ? " checked" : "") + ">" +
-            '<span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">' +
-              '<span class="flex items-center gap-2.5">' +
-                '<span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span>' +
-                '<span class="pick-name text-sm font-semibold text-slate-200">' + esc(slot.label) + "</span>" +
-              "</span>" + sub +
-            "</span>" +
-          "</label>"
-        );
-      }
 
-      function bindSimRadios() {
-        var inputs = document.querySelectorAll('input[name="simsel"]');
-        for (var i = 0; i < inputs.length; i++) {
-          inputs[i].addEventListener("change", function (ev) { call("setSim", Number(ev.target.value)); });
-        }
-      }
 
-      function renderSims(sims, selected) {
-        var sig = JSON.stringify(sims);
-        if (sig !== lastSimsSig) {
-          lastSimsSig = sig;
-          document.getElementById("sim-list").innerHTML = sims
-            .map(function (s) { return simFace(s, Number(s.slot) === selected); })
-            .join("");
-          bindSimRadios();
-        }
-        var inputs = document.querySelectorAll('input[name="simsel"]');
-        for (var i = 0; i < inputs.length; i++) {
-          inputs[i].checked = Number(inputs[i].value) === selected;
-        }
-      }
 
       function renderLogs(logs) {
         document.getElementById("log-count").textContent = logs.length
@@ -792,7 +760,6 @@
         var callPerm = !!s.callPermission;
         var simPerm = !!s.simPermission;
         var ready = a11y && callPerm && simPerm;
-        var simSlot = Number(s.simSlot) || 0;
 
 
         // header badge: Active / Idle
@@ -816,24 +783,6 @@
         badge.className = running
           ? "shrink-0 rounded-full bg-emerald-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300"
           : "shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300";
-
-        // stat chips: channel + SIM
-
-        var simName = "SIM " + (simSlot + 1);
-        var sims = s.sims || [];
-        for (var i = 0; i < sims.length; i++) {
-          if (Number(sims[i].slot) === simSlot && sims[i].carrier) {
-            simName = "SIM " + (simSlot + 1) + " · " + sims[i].carrier;
-            break;
-          }
-        }
-        document.getElementById("stat-sim").textContent = simName;
-
-        // saved channel login (phone only; the PIN never reaches the page)
-        var cred = readCredentials();
-        document.getElementById("hero-credentials-value").textContent = cred
-          ? "+251 " + cred.phone
-          : "Not set";
 
         // primary action button
         var action = document.getElementById("action-btn");
@@ -868,7 +817,6 @@
         document.getElementById("active-view").classList.toggle("flex", running);
         document.getElementById("dashboard-content").classList.toggle("hidden", running);
         document.getElementById("settings-stop").classList.toggle("hidden", !running);
-        document.getElementById("hero-credentials").classList.toggle("hidden", running);
 
         // The orb and the settings gear are the whole running state; the
         // stopped state keeps the compact status panel below the header.
@@ -876,7 +824,6 @@
         document.getElementById("active-view").classList.toggle("flex", running);
         document.getElementById("dashboard-content").classList.toggle("hidden", running);
         document.getElementById("settings-stop").classList.toggle("hidden", !running);
-        document.getElementById("hero-credentials").classList.toggle("hidden", running);
 
         // Sync card: the newest activity-log row is the phone's proof of life.
         // Logs arrive in state order, so the tail is the latest event; the
@@ -890,7 +837,6 @@
             : "No events yet";
         }
 
-        renderSims(sims, simSlot);
         renderLogs(logs);
       }
 
