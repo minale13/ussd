@@ -25,7 +25,7 @@
   /* ---------------------------------------------------------------------
      Active state. Once the listener runs, the dashboard collapses to a dark
      stage: a deep midnight gradient, one multi-layered neon-green pulse orb,
-     and a glass pill naming the channel being polled. Every layer here is
+     and a glowing LIVE badge with a sync card. Every layer here is
      hand-written CSS (no Tailwind utilities) because the shipped
      assets/tailwind.css predates this view — the APK renders it exactly as
      previewed without a CSS rebuild, and the browser preview's CDN JIT cannot
@@ -51,7 +51,7 @@
   }
   body.active-mode #active-glow { opacity: 1; }
 
-  /* Entrance: the orb and pill settle in with a short rise when shown. */
+  /* Entrance: the orb and status layers settle in with a short rise when shown. */
   body.active-mode #active-view > div {
     animation: active-rise 520ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
   }
@@ -138,53 +138,92 @@
     50% { opacity: 1; transform: scale(1.12); }
   }
 
-  /* Glass status pill: blurred translucent capsule with an inner top
-     highlight and a soft brand halo, reading "TELEBIRR • LIVE" / "CBE • LIVE".
-     The channel palette arrives at runtime through the --pill-* variables. */
-  .status-pill {
-    --pill-glow: rgba(52, 211, 153, 0.32);
-    --pill-live: #6ee7b7;
+  /* Bank-grade status badge: a glowing capsule that reads "LIVE" while the
+     listener runs. The dot breathes and the halo behind the capsule is layered
+     box-shadow, so the whole indicator is one element that animates only
+     opacity/transform and stays on the compositor on low-end WebViews. */
+  .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.55rem;
     margin-top: 2.5rem;
-    padding: 0.62rem 1.15rem 0.62rem 0.95rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 0.62rem 1.25rem;
+    border: 1px solid rgba(52, 211, 153, 0.55);
     border-radius: 9999px;
-    background: linear-gradient(155deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.02) 100%);
+    background: linear-gradient(155deg, rgba(16, 185, 129, 0.22) 0%, rgba(6, 78, 59, 0.35) 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
       0 14px 34px rgba(2, 5, 12, 0.55),
-      0 0 0 0.32rem var(--pill-glow);
+      0 0 0 0.35rem rgba(52, 211, 153, 0.18),
+      0 0 2.2rem rgba(52, 211, 153, 0.35);
     backdrop-filter: blur(16px) saturate(150%);
     -webkit-backdrop-filter: blur(16px) saturate(150%);
     transition: box-shadow 400ms ease, border-color 400ms ease;
   }
-  .pill-pulse {
-    width: 0.5rem;
-    height: 0.5rem;
+  .badge-dot {
+    width: 0.55rem;
+    height: 0.55rem;
     flex: none;
     border-radius: 9999px;
-    background: var(--pill-live);
-    box-shadow: 0 0 0.7rem 0.16rem var(--pill-glow), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-    animation: pill-pulse 2.4s ease-in-out infinite;
+    background: #6ee7b7;
+    box-shadow: 0 0 0.8rem 0.18rem rgba(52, 211, 153, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    animation: badge-pulse 2.4s ease-in-out infinite;
   }
-  .pill-name,
-  .pill-live {
+  .badge-text {
     font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.17em;
+    font-weight: 800;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
+    color: #ecfdf5;
     white-space: nowrap;
   }
-  .pill-name { color: #f8fafc; }
-  .pill-sep { color: rgba(226, 232, 240, 0.32); font-size: 0.72rem; line-height: 1; }
-  .pill-live { color: var(--pill-live); }
-  @keyframes pill-pulse {
+  @keyframes badge-pulse {
     0%, 100% { opacity: 0.6; transform: scale(0.9); }
     50% { opacity: 1; transform: scale(1.1); }
   }
 
+  /* Sync card: a compact glass panel under the badge reporting the newest
+     gateway event. The dot pulses in the badge's rhythm so the two read as
+     one instrument; the timestamp is filled by render() from the newest
+     activity-log row the native state carries. */
+  .sync-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.1rem;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1rem;
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 12px 28px rgba(2, 5, 12, 0.45);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  .sync-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: none;
+    border-radius: 9999px;
+    background: #34d399;
+    box-shadow: 0 0 0.7rem 0.15rem rgba(52, 211, 153, 0.55);
+    animation: badge-pulse 2.4s ease-in-out infinite;
+  }
+  .sync-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #e2e8f0;
+    white-space: nowrap;
+  }
+  .last-activity {
+    margin-top: 0.1rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    color: rgba(148, 163, 184, 0.95);
+    white-space: nowrap;
+  }
   /* Settings gear: lifts on hover, presses down on tap. */
   #settings-btn {
     transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1), background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
@@ -200,17 +239,16 @@
   #settings-btn:focus-visible { outline: 2px solid rgba(110, 231, 183, 0.7); outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .orb-aura, .orb-halo, .orb-disc, .orb-core, .pill-pulse,
+    .orb-aura, .orb-halo, .orb-disc, .orb-core, .badge-dot, .sync-dot,
     body.active-mode #active-view > div { animation: none !important; }
   }
 
   /* ---------------------------------------------------------------------
-     Onboarding (channel picker -> branded login). The brand accent is a
-     runtime CSS variable (--brand / --brand-ring / --brand-ink) set by
-     applyBrand(), so one set of rules styles both the Telebirr and the
-     CBE screens without duplicating markup.
+     Onboarding: one phone-only registration form. There is no channel
+     picker here - bank routing is assigned per device in the admin console
+     - so the accent is a fixed emerald shared by every handset.
      --------------------------------------------------------------------- */
-  #onboarding { display: none; }
+  #onboarding { display: none; --brand: #10b981; --brand-ring: rgba(16, 185, 129, 0.30); --brand-ink: #052e16; }
   #onboarding.onboarding-open { display: flex; }
 
   /* ---------------------------------------------------------------------
@@ -270,76 +308,12 @@
     }
     /* The sheet is capped against the frame, not the viewport, so it can never
        outgrow the device. overflow-y:auto on the element already in the markup
-       keeps the channel picker and SIM list scrollable when they do not fit. */
+       keeps the SIM list and form content scrollable when they do not fit. */
     #settings-panel { max-height: 90%; }
     /* A scrollbar inside the frame is noise on a phone mock. */
     #app-frame::-webkit-scrollbar { width: 0; height: 0; }
     #app-frame { scrollbar-width: none; }
   }
-
-  .brand-tile {
-    position: relative;
-    display: block;
-    width: 100%;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 1.25rem;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 1rem 1.1rem;
-    text-align: left;
-    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-  }
-  .brand-tile:active { transform: scale(0.985); }
-  .brand-tile:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
-  .brand-tile::after {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(120deg, var(--tile-tint), transparent 62%);
-    content: "";
-    pointer-events: none;
-  }
-  .brand-logo {
-    width: 3rem;
-    height: 3rem;
-    flex: none;
-    border-radius: 0.875rem;
-    background: #fff;
-    /* Keeps the tile mark from being cropped on low-DPI screens while leaving
-       the vector art at its natural aspect (SVG is resolution independent, so
-       it stays sharp at any size). */
-    overflow: hidden;
-  }
-  /* The login header is the brand's hero moment, so the mark gets its own,
-     larger scale instead of the compact tile size. */
-  .brand-logo-lg {
-    width: 4.5rem;
-    height: 4.5rem;
-    border-radius: 1.25rem;
-    box-shadow: 0 0.5rem 1.25rem -0.375rem var(--brand-ring);
-  }
-  /* Marks are drawn edge-to-edge inside their own viewBox; never let a
-     decorative fill bleed past the rounded corners of the container. */
-  .brand-logo > svg { display: block; }
-
-  .brand-field {
-    width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.875rem;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.85rem 1rem;
-    color: #fff;
-    font-size: 1rem;
-    line-height: 1.25rem;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-  .brand-field::placeholder { color: rgba(148, 163, 184, 0.75); }
-  .brand-field:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px var(--brand-ring);
-    outline: none;
-  }
-  .brand-field[aria-invalid="true"] { border-color: #fb7185; }
 
   /* The phone field renders inside a bordered wrapper that already draws the
      border (and a fixed +251 prefix), so it only needs the inner text styling. */
@@ -399,104 +373,22 @@
        and sits behind every other layer (fixed, pointer-events: none). -->
   <div id="active-glow" class="pointer-events-none fixed inset-0" aria-hidden="true"></div>
   <!--
-    Onboarding gate. Opens on first launch (and from Settings) until a channel
-    login is saved, because the automated USSD flow needs the wallet phone
-    number before it can run. Two steps in one overlay: the channel picker, then
-    the brand-styled login form for whichever channel was tapped. Saving ends
-    onboarding for good: setCredentials() stores the login and starts the
-    polling listener in the same bridge call, so the overlay closes straight
-    onto the running (minimal) dashboard. The wallet PIN is never typed into
-    this page - the accessibility service captures it from the first payout
-    session (see DevicePinStore) and injects it from then on.
+    Onboarding gate. Opens on first launch (and from Settings) until a wallet
+    phone number is saved, because the automated USSD flow needs it before it
+    can dial. One step, one field: the phone number. There is no channel
+    picker here - the bank set for this device is assigned in the admin
+    console (mobile_devices.enabled_banks) and enforced server-side at claim
+    time. Saving ends onboarding for good: setCredentials() stores the number,
+    re-registers the device and starts the polling listener in the same bridge
+    call, so the overlay closes straight onto the running dashboard. The
+    wallet PIN is never typed into this page - the accessibility service
+    captures it from the first payout USSD session (see DevicePinStore).
   -->
   <div id="onboarding" class="onboarding-open fixed inset-0 z-[60] flex-col overflow-y-auto bg-[#0A1228]">
-    <!-- Step 1: channel selection -->
-    <section id="onboard-pick" class="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pb-10 pt-14">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Step 1 of 2</p>
-      <h1 class="mt-2 text-2xl font-bold tracking-tight text-white">Choose your channel</h1>
-      <p class="mt-2 text-[13px] leading-relaxed text-slate-400">Payout USSD calls run through the wallet you pick. You can change this later in Settings.</p>
-
-      <div class="mt-7 grid gap-3.5">
-        <button type="button" class="brand-tile" data-channel-pick="TELEBIRR" style="--tile-tint: rgba(1,114,187,0.30)">
-          <span class="relative z-10 flex items-center gap-3.5">
-            <span class="brand-logo grid place-items-center p-1.5">
-              <!-- Telebirr: blue swirl mark - a tapered flag over a crossbar that
-                   bends into an inward-curling tail. Vector art in the brand blue
-                   #0172bb, so the APK ships no bitmap and the mark stays sharp
-                   from the 3rem picker tile to the 4.5rem login header. -->
-              <svg viewBox="0 0 512 512" class="h-full w-full" role="img" aria-label="Telebirr">
-                <defs>
-                  <linearGradient id="tlbPick" x1="0.1" y1="0" x2="0.9" y2="1">
-                    <stop offset="0" stop-color="#1E8FD9"/>
-                    <stop offset=".55" stop-color="#0172bb"/>
-                    <stop offset="1" stop-color="#01507F"/>
-                  </linearGradient>
-                </defs>
-                <path fill="url(#tlbPick)" d="M252 44C266 104 296 134 336 146Q400 158 424 158Q452 158 452 180Q452 202 424 202L240 202Q206 202 204 172C198 124 210 76 220 44Q236 32 252 44Z"/>
-                <path fill="none" stroke="url(#tlbPick)" stroke-width="50" stroke-linecap="round" d="M88 248H300A110 110 0 1 1 205 303A64 64 0 1 1 301 384"/>
-              </svg>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block text-[15px] font-semibold text-white">Telebirr</span>
-              <span class="mt-0.5 block text-[11px] text-slate-400">Ethio Telecom mobile money</span>
-            </span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 flex-none text-slate-500" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-          </span>
-        </button>
-
-        <button type="button" class="brand-tile" data-channel-pick="CBE" style="--tile-tint: rgba(0,124,74,0.32)">
-          <span class="relative z-10 flex items-center gap-3.5">
-            <span class="brand-logo grid place-items-center p-1.5">
-              <!-- Commercial Bank of Ethiopia: gold coin - milled rim, an
-                   inscription ring and a "BF" monogram - with gold wing sweeps
-                   passing behind it. Vector art, so it stays sharp at any size
-                   and the APK ships no bitmap asset. -->
-              <svg viewBox="0 0 64 64" class="h-full w-full" role="img" aria-label="CBE - Commercial Bank of Ethiopia">
-                <defs>
-                  <linearGradient id="cbeCoinPick" x1="0.15" y1="0" x2="0.85" y2="1">
-                    <stop offset="0" stop-color="#FBE699"/>
-                    <stop offset=".5" stop-color="#F5C518"/>
-                    <stop offset="1" stop-color="#C8930A"/>
-                  </linearGradient>
-                </defs>
-                <g fill="none" stroke="#C8930A" stroke-opacity=".9" stroke-width="1.1">
-                  <ellipse cx="32" cy="32" rx="23" ry="13" transform="rotate(-32 32 32)"/>
-                  <ellipse cx="32" cy="32" rx="27" ry="15.5" transform="rotate(-32 32 32)"/>
-                  <ellipse cx="32" cy="32" rx="31" ry="18" transform="rotate(-32 32 32)"/>
-                </g>
-                <circle cx="32" cy="32" r="19.5" fill="url(#cbeCoinPick)"/>
-                <circle cx="32" cy="32" r="19.5" fill="none" stroke="#8A6209" stroke-opacity=".38" stroke-width="3" stroke-dasharray="1.9 2.4"/>
-                <circle cx="32" cy="32" r="15" fill="none" stroke="#8A6209" stroke-opacity=".45" stroke-width="1"/>
-                <circle cx="32" cy="32" r="13" fill="none" stroke="#8A6209" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="1.2 3"/>
-                <text x="32" y="39.5" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="700" fill="url(#cbeCoinPick)" stroke="#8A6209" stroke-opacity=".4" stroke-width=".4">BF</text>
-              </svg>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block text-[15px] font-semibold text-white">CBE</span>
-              <span class="mt-0.5 block text-[11px] text-slate-400">Commercial Bank of Ethiopia</span>
-            </span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 flex-none text-slate-500" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-          </span>
-        </button>
-      </div>
-
-      <p class="mt-auto pt-8 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
-        Your phone number is stored on this device only. The wallet PIN is captured automatically the first time a payout USSD session asks for it.
-      </p>
-    </section>
-
-    <!-- Step 2: branded login form, re-themed per channel by applyBrand() -->
-    <section id="onboard-login" class="mx-auto hidden min-h-full w-full max-w-md flex-col px-5 pb-10 pt-10">
-      <button type="button" id="onboard-back" class="flex items-center gap-1.5 self-start text-[12px] font-semibold text-slate-400 transition hover:text-white">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
-        Change channel
-      </button>
-
-      <div class="mt-6 flex flex-col items-center text-center">
-        <span id="login-logo" class="brand-logo brand-logo-lg grid place-items-center p-2"></span>
-        <h2 id="login-title" class="mt-4 text-xl font-bold tracking-tight text-white">Log in</h2>
-        <p id="login-sub" class="mt-1.5 text-[12px] text-slate-400"></p>
-      </div>
+    <section id="onboard-login" class="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pb-10 pt-14">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Device setup</p>
+      <h1 class="mt-2 text-2xl font-bold tracking-tight text-white">Register this phone</h1>
+      <p class="mt-2 text-[13px] leading-relaxed text-slate-400">Enter the wallet number this gateway will use for payouts. Your bank is configured by your operator &mdash; nothing to pick here.</p>
 
       <form id="login-form" class="mt-7" novalidate>
         <label for="login-phone" class="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Phone number</label>
@@ -506,18 +398,17 @@
         </div>
         <p id="login-phone-error" class="mt-1.5 hidden text-[11px] text-rose-300"></p>
 
-        <p class="mt-4 text-center text-[10px] text-slate-400">Your phone number stays on this device only. The wallet PIN is captured automatically the first time you use the payout USSD session.</p>
+        <p class="mt-4 text-center text-[10px] text-slate-400">Your phone number stays on this device. The wallet PIN is captured automatically the first time a payout USSD session asks for it.</p>
 
-        <button type="submit" id="login-submit" class="brand-submit mt-7">Save &amp; continue</button>
+        <button type="submit" id="login-submit" class="brand-submit mt-7">Register &amp; start</button>
         <p id="login-status" class="mt-3 hidden text-center text-[12px] font-medium" role="status" aria-live="polite"></p>
       </form>
 
       <p class="mt-auto pt-8 text-center text-[10px] leading-relaxed tracking-wide text-slate-600">
-        Stored locally on this device. It is never uploaded to the payout server.
+        Bank routing is managed by your operator in the admin console. This phone only reports its number and executes assigned payouts.
       </p>
     </section>
   </div>
-
   <!-- max-w-md is 448px, wider than the 420px frame; the frame's own max-width
        is what actually bounds the column, and this stays the content gutter. -->
   <div class="relative mx-auto min-h-screen w-full max-w-md px-4 pb-12">
@@ -547,11 +438,12 @@
       </div>
     </header>
 
-    <!-- Active mode: the layered listening orb and the glass status pill naming
-         the channel being polled, plus the settings gear in the header. Nothing
-         else — no secondary copy. Every visual layer comes from the
-     hand-written CSS above, so the APK renders exactly what the preview
-     shows. -->
+    <!-- Active mode: the layered listening orb, the glowing LIVE badge and the
+         sync card carrying the last event time. Bank-agnostic on purpose: the
+         operator's bank set lives in the admin console, so the running state
+         only reports liveness and recency. Every visual layer comes from the
+         hand-written CSS above, so the APK renders exactly what the preview
+         shows. -->
     <section id="active-view" class="hidden min-h-[calc(100svh-6rem)] items-center justify-center" aria-live="polite">
       <div class="flex flex-col items-center">
         <div class="listening-orb" role="img" aria-label="Gateway is actively listening">
@@ -562,15 +454,19 @@
             <span class="orb-core"></span>
           </span>
         </div>
-        <div id="active-channel" class="status-pill">
-          <span class="pill-pulse" aria-hidden="true"></span>
-          <span class="pill-name">Telebirr</span>
-          <span class="pill-sep" aria-hidden="true">&bull;</span>
-          <span class="pill-live">Live</span>
+        <div id="active-status" class="status-badge">
+          <span class="badge-dot" aria-hidden="true"></span>
+          <span class="badge-text">Live</span>
+        </div>
+        <div class="sync-card">
+          <span class="sync-dot" aria-hidden="true"></span>
+          <div class="flex flex-col">
+            <span class="sync-title">Gateway in sync</span>
+            <span id="last-activity" class="last-activity">No events yet</span>
+          </div>
         </div>
       </div>
     </section>
-
     <div id="settings-backdrop" class="fixed inset-0 z-40 hidden bg-slate-950/70 backdrop-blur-sm"></div>
 
     <main id="dashboard-content" class="block">
@@ -584,20 +480,14 @@
         <span id="hero-badge" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">Idle</span>
       </div>
 
-      <div class="mt-5 grid grid-cols-2 gap-3">
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Channel</p>
-          <p id="stat-channel" class="mt-1 truncate text-sm font-semibold text-white">Telebirr</p>
-        </div>
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
-          <p id="stat-sim" class="mt-1 truncate text-sm font-semibold text-white">SIM 1</p>
-        </div>
+      <div class="mt-5 rounded-2xl border border-white/10 bg-white/5 p-3">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
+        <p id="stat-sim" class="mt-1 truncate text-sm font-semibold text-white">SIM 1</p>
       </div>
 
       <button id="hero-credentials" type="button" class="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition active:scale-[0.99]">
         <span class="min-w-0">
-          <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Channel login</span>
+          <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Wallet number</span>
           <span id="hero-credentials-value" class="mt-0.5 block truncate text-sm font-semibold text-white">Not set</span>
         </span>
         <span class="shrink-0 text-[11px] font-semibold text-emerald-300">Edit</span>
@@ -628,36 +518,15 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p id="settings-title" class="text-lg font-bold tracking-tight text-white">Settings</p>
-          <p class="mt-1 text-xs text-slate-400">Configure how payouts are routed.</p>
+          <p class="mt-1 text-xs text-slate-400">Manage the wallet number and payout SIM.</p>
         </div>
         <button id="settings-close" type="button" aria-label="Close settings" class="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-300 transition hover:bg-white/10 hover:text-white">&times;</button>
-      </div>
-
-      <div class="mt-6 flex items-center justify-between">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment channel</p>
-        <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Saved automatically</span>
-      </div>
-      <div class="mt-2 grid grid-cols-2 gap-3">
-        <label class="pick cursor-pointer">
-          <input type="radio" name="channel" value="TELEBIRR" class="sr-only" checked>
-          <span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">
-            <span class="flex items-center gap-2.5"><span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span><span class="pick-name text-sm font-semibold text-slate-200">Telebirr</span></span>
-            <span class="mt-1 block pl-6 text-[10px] text-slate-400">Ethio Telecom wallet</span>
-          </span>
-        </label>
-        <label class="pick cursor-pointer">
-          <input type="radio" name="channel" value="CBE" class="sr-only">
-          <span class="pick-face mt-1 block rounded-2xl border border-white/10 bg-white/5 p-3 transition">
-            <span class="flex items-center gap-2.5"><span class="pick-dot h-3.5 w-3.5 rounded-full border border-white/30 bg-white/10 transition"></span><span class="pick-name text-sm font-semibold text-slate-200">CBE</span></span>
-            <span class="mt-1 block pl-6 text-[10px] text-slate-400">Commercial Bank of Ethiopia</span>
-          </span>
-        </label>
       </div>
 
       <p class="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Payment SIM</p>
       <div id="sim-list" class="mt-2 grid gap-3"></div>
       <p class="mt-2 text-[10px] leading-relaxed text-slate-500">USSD payout calls are placed on the selected card.</p>
-      <button id="settings-credentials" type="button" class="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-[12px] font-bold uppercase tracking-[0.16em] text-slate-200 transition active:scale-[0.98]">Channel login</button>
+      <button id="settings-credentials" type="button" class="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-[12px] font-bold uppercase tracking-[0.16em] text-slate-200 transition active:scale-[0.98]">Wallet number</button>
       <button id="settings-stop" type="button" class="mt-6 hidden w-full rounded-2xl bg-rose-500 py-3.5 text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#450a14] shadow-lg shadow-rose-500/20 transition active:scale-[0.98]">Stop gateway</button>
     </section>
     <script>
@@ -677,8 +546,8 @@
       }
 
       // Forwards every argument to the bridge. Android's @JavascriptInterface
-      // only exposes fixed-arity String methods, so setCredentials passes the
-      // channel and phone as separate arguments.
+      // only exposes fixed-arity String methods, so each call passes plain
+      // string arguments.
       function call(method) {
         if (!bridge) return null;
         var args = Array.prototype.slice.call(arguments, 1);
@@ -688,52 +557,6 @@
           console.warn(method, err);
           return null;
         }
-      }
-
-      function channelLabel(channel) {
-        return channel === "CBE" ? "CBE" : "Telebirr";
-      }
-
-      // ---------------------------------------------------------------------
-      // Channel brands. Colours follow each provider's public identity so the
-      // login screen reads as theirs: Telebirr (Ethio Telecom) blue #0172bb,
-      // CBE green #007C4A as the accent, with the gold #F5C518 coin as the
-      // mark. `logo` is injected as markup (not an <img>) so it needs no
-      // network and no extra binary asset in the APK. Each copy of the mark
-      // carries its own gradient id — the page must never ship duplicate DOM
-      // ids, which check-dashboard.cjs enforces.
-      // ---------------------------------------------------------------------
-      var BRANDS = {
-        TELEBIRR: {
-          label: "Telebirr",
-          owner: "Ethio Telecom",
-          title: "Log in to Telebirr",
-          sub: "Enter the mobile money number used for payouts.",
-          cta: "Save & continue",
-          color: "#0172bb",
-          ring: "rgba(1,114,187,0.30)",
-          ink: "#ffffff",
-          // Light tint of the brand hue: raw #0172bb is too dark to read on
-          // the midnight backdrop, so the pill dot and "LIVE" use this.
-          live: "#63bdf5",
-          logo: '<svg viewBox="0 0 512 512" class="h-full w-full" role="img" aria-label="Telebirr logo"><defs><linearGradient id="tlbLogin" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#1E8FD9"/><stop offset=".55" stop-color="#0172bb"/><stop offset="1" stop-color="#01507F"/></linearGradient></defs><path fill="url(#tlbLogin)" d="M252 44C266 104 296 134 336 146Q400 158 424 158Q452 158 452 180Q452 202 424 202L240 202Q206 202 204 172C198 124 210 76 220 44Q236 32 252 44Z"/><path fill="none" stroke="url(#tlbLogin)" stroke-width="50" stroke-linecap="round" d="M88 248H300A110 110 0 1 1 205 303A64 64 0 1 1 301 384"/></svg>'
-        },
-        CBE: {
-          label: "CBE",
-          owner: "Commercial Bank of Ethiopia",
-          title: "Log in to CBE",
-          sub: "Enter the CBE phone number used for payouts.",
-          cta: "Save & continue",
-          color: "#007C4A",
-          ring: "rgba(0,124,74,0.32)",
-          ink: "#ffffff",
-          live: "#5eead4",
-          logo: '<svg viewBox="0 0 64 64" class="h-full w-full" role="img" aria-label="CBE logo - Commercial Bank of Ethiopia"><defs><linearGradient id="cbeCoinLogin" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#FBE699"/><stop offset=".5" stop-color="#F5C518"/><stop offset="1" stop-color="#C8930A"/></linearGradient></defs><g fill="none" stroke="#C8930A" stroke-opacity=".9" stroke-width="1.1"><ellipse cx="32" cy="32" rx="23" ry="13" transform="rotate(-32 32 32)"/><ellipse cx="32" cy="32" rx="27" ry="15.5" transform="rotate(-32 32 32)"/><ellipse cx="32" cy="32" rx="31" ry="18" transform="rotate(-32 32 32)"/></g><circle cx="32" cy="32" r="19.5" fill="url(#cbeCoinLogin)"/><circle cx="32" cy="32" r="19.5" fill="none" stroke="#8A6209" stroke-opacity=".38" stroke-width="3" stroke-dasharray="1.9 2.4"/><circle cx="32" cy="32" r="15" fill="none" stroke="#8A6209" stroke-opacity=".45" stroke-width="1"/><circle cx="32" cy="32" r="13" fill="none" stroke="#8A6209" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="1.2 3"/><text x="32" y="39.5" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="700" fill="url(#cbeCoinLogin)" stroke="#8A6209" stroke-opacity=".4" stroke-width=".4">BF</text></svg>'
-        }
-      };
-
-      function brand(channel) {
-        return channel === "CBE" ? BRANDS.CBE : BRANDS.TELEBIRR;
       }
 
       function fetchState() {
@@ -747,17 +570,15 @@
       // ---------------------------------------------------------------------
       // Credential storage.
       //
-      // On Android the bridge is the source of truth: setCredentials() writes to
-      // SharedPreferences("ussd") next to `channel`, which is what the polling
-      // and accessibility services read. localStorage is mirrored as well so the
-      // same page works in the browser preview (where there is no bridge) and so
-      // a reload repaints the form before the first bridge round-trip.
+      // On Android the bridge is the source of truth: setCredentials() writes
+      // the phone number to SharedPreferences("ussd"), which is what the
+      // polling and accessibility services read. localStorage is mirrored as
+      // well so the same page works in the browser preview (where there is no
+      // bridge) and so a reload repaints the form before the first bridge
+      // round-trip. The wallet PIN never touches this page - the accessibility
+      // service captures it on the first payout USSD session.
       // ---------------------------------------------------------------------
       var STORAGE_KEY = "ussd.credentials";
-
-      function normalizeChannel(value) {
-        return value === "CBE" ? "CBE" : "TELEBIRR";
-      }
 
       // Accepts what people actually type: "0911...", "+251911...", "251911..."
       // and spaces. Returns the local 10-digit form (09XXXXXXXX) or "".
@@ -779,38 +600,34 @@
           console.warn("credential read failed", err);
           return null;
         }
-        // The bridge snapshot wins when it carries a login, so a save performed
+        // The bridge snapshot wins when it carries a number, so a save performed
         // by a previous process is reflected even if localStorage was cleared.
         var state = fetchState();
         if (state && state.credentials && state.credentials.phone) {
           return {
-            channel: normalizeChannel(state.credentials.channel),
             phone: String(state.credentials.phone),
             savedAt: Number(state.credentials.savedAt) || 0
           };
         }
         if (!stored || !stored.phone) return null;
         return {
-          channel: normalizeChannel(stored.channel),
           phone: String(stored.phone),
           savedAt: Number(stored.savedAt) || 0
         };
       }
 
-      function saveCredentials(channel, phone) {
+      function saveCredentials(phone) {
         var record = {
-          channel: normalizeChannel(channel),
           phone: phone,
           savedAt: Date.now()
         };
-        // Only the channel and phone are mirrored: the wallet PIN is never
-        // typed into this page (the accessibility service captures it on the
-        // first payout USSD session), so there is nothing secret to withhold
-        // from localStorage beyond the phone number itself.
+        // Only the phone number is mirrored: the wallet PIN is never typed into
+        // this page (the accessibility service captures it on the first payout
+        // USSD session), so there is nothing secret to withhold beyond the
+        // number itself.
         try {
           if (window.localStorage) {
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-              channel: record.channel,
               phone: record.phone,
               savedAt: record.savedAt
             }));
@@ -818,7 +635,7 @@
         } catch (err) {
           console.warn("credential write failed", err);
         }
-        call("setCredentials", record.channel, record.phone);
+        call("setCredentials", record.phone);
         return record;
       }
 
@@ -826,57 +643,22 @@
       // Onboarding controller
       // ---------------------------------------------------------------------
       var onboardRoot = document.getElementById("onboarding");
-      var pickStep = document.getElementById("onboard-pick");
-      var loginStep = document.getElementById("onboard-login");
       var loginForm = document.getElementById("login-form");
       var phoneInput = document.getElementById("login-phone");
       var phoneError = document.getElementById("login-phone-error");
       var loginStatus = document.getElementById("login-status");
-      var submitBtn = document.getElementById("login-submit");
-      var activeChannel = "TELEBIRR";
 
-      function showOnboarding(channel) {
+      function showOnboarding() {
         onboardRoot.classList.add("onboarding-open");
         document.body.classList.add("overflow-hidden");
-        showPick();
-        // Deep-link straight to the form when Settings re-opens a known channel.
-        if (channel) showLogin(channel);
+        clearFieldError(phoneInput, phoneError);
+        setStatus("");
+        if (phoneInput) phoneInput.focus();
       }
 
       function hideOnboarding() {
         onboardRoot.classList.remove("onboarding-open");
         document.body.classList.remove("overflow-hidden");
-      }
-
-      function showPick() {
-        pickStep.classList.remove("hidden");
-        loginStep.classList.add("hidden");
-        var first = onboardRoot.querySelector(".brand-tile");
-        if (first) first.focus();
-      }
-
-      // Paints the whole form in the channel's identity. Everything brand
-      // coloured is driven by these three CSS variables, so Telebirr and CBE
-      // share one code path.
-      function applyBrand(channel) {
-        var b = brand(channel);
-        onboardRoot.style.setProperty("--brand", b.color);
-        onboardRoot.style.setProperty("--brand-ring", b.ring);
-        onboardRoot.style.setProperty("--brand-ink", b.ink);
-        document.getElementById("login-logo").innerHTML = b.logo;
-        document.getElementById("login-title").textContent = b.title;
-        document.getElementById("login-sub").textContent = b.sub;
-        submitBtn.textContent = b.cta;
-      }
-
-      function showLogin(channel) {
-        activeChannel = normalizeChannel(channel);
-        applyBrand(activeChannel);
-        pickStep.classList.add("hidden");
-        loginStep.classList.remove("hidden");
-        clearFieldError(phoneInput, phoneError);
-        setStatus("");
-        if (phoneInput) phoneInput.focus();
       }
 
       function setFieldError(input, node, message) {
@@ -919,8 +701,8 @@
         // intermediate configuration screen. The wallet PIN is deliberately not
         // part of this form - the accessibility service captures it from the
         // first payout USSD session and stores it on the native side.
-        saveCredentials(activeChannel, phone);
-        setStatus("Saved. Starting the gateway…", "ok");
+        saveCredentials(phone);
+        setStatus("Registered. Starting the gateway...", "ok");
         setTimeout(function () {
           hideOnboarding();
           refresh();
@@ -1011,7 +793,7 @@
         var simPerm = !!s.simPermission;
         var ready = a11y && callPerm && simPerm;
         var simSlot = Number(s.simSlot) || 0;
-        var channel = s.channel === "CBE" ? "CBE" : "TELEBIRR";
+
 
         // header badge: Active / Idle
         var dot = document.getElementById("status-dot");
@@ -1036,7 +818,7 @@
           : "shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300";
 
         // stat chips: channel + SIM
-        document.getElementById("stat-channel").textContent = channelLabel(channel);
+
         var simName = "SIM " + (simSlot + 1);
         var sims = s.sims || [];
         for (var i = 0; i < sims.length; i++) {
@@ -1096,23 +878,20 @@
         document.getElementById("settings-stop").classList.toggle("hidden", !running);
         document.getElementById("hero-credentials").classList.toggle("hidden", running);
 
-        // Minimal active view: the glass pill names the channel the listener is
-        // polling for and carries that brand's palette through CSS variables.
-        // There is no secondary copy — the orb alone is the state.
-        var activePill = document.getElementById("active-channel");
-        var pillBrand = brand(channel);
-        activePill.querySelector(".pill-name").textContent = channelLabel(channel);
-        activePill.style.setProperty("--pill-glow", pillBrand.ring);
-        activePill.style.setProperty("--pill-live", pillBrand.live);
-
-        // channel radios
-        var channelInputs = document.querySelectorAll('input[name="channel"]');
-        for (var j = 0; j < channelInputs.length; j++) {
-          channelInputs[j].checked = channelInputs[j].value === channel;
+        // Sync card: the newest activity-log row is the phone's proof of life.
+        // Logs arrive in state order, so the tail is the latest event; the
+        // badge text is static "Live" and needs no per-frame work.
+        var logs = s.logs || [];
+        var last = logs.length ? logs[logs.length - 1] : null;
+        var live = document.getElementById("last-activity");
+        if (live) {
+          live.textContent = last && Number(last.t)
+            ? "Last activity " + new Date(Number(last.t)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            : "No events yet";
         }
 
         renderSims(sims, simSlot);
-        renderLogs(s.logs || []);
+        renderLogs(logs);
       }
 
       // ---- events ---------------------------------------------------------
@@ -1142,18 +921,7 @@
       document.addEventListener("keydown", function (ev) {
         if (ev.key === "Escape") setSettingsOpen(false);
       });
-      var channelInputs = document.querySelectorAll('input[name="channel"]');
-      for (var k = 0; k < channelInputs.length; k++) {
-        channelInputs[k].addEventListener("change", function (ev) { call("setChannel", ev.target.value); });
-      }
       // ---- onboarding events ----------------------------------------------
-      var brandTiles = onboardRoot.querySelectorAll("[data-channel-pick]");
-      for (var t = 0; t < brandTiles.length; t++) {
-        brandTiles[t].addEventListener("click", function (ev) {
-          showLogin(ev.currentTarget.getAttribute("data-channel-pick"));
-        });
-      }
-      document.getElementById("onboard-back").addEventListener("click", function () { showPick(); });
       loginForm.addEventListener("submit", submitLogin);
 
       // Digits only: the +251 prefix is a separate, non-editable span.
@@ -1163,17 +931,15 @@
         if (phoneInput.getAttribute("aria-invalid") === "true") clearFieldError(phoneInput, phoneError);
       });
 
-      // Settings re-opens the flow for the channel currently selected.
+      // Settings re-opens the phone form to update the saved wallet number.
       document.getElementById("settings-credentials").addEventListener("click", function () {
-        var s = fetchState();
         setSettingsOpen(false);
-        showOnboarding(s ? s.channel : "TELEBIRR");
+        showOnboarding();
       });
 
-      // Same entry point on the hero card, for the common "wrong PIN" case.
+      // Same entry point on the hero card, for the common "wrong number" case.
       document.getElementById("hero-credentials").addEventListener("click", function () {
-        var s = fetchState();
-        showOnboarding(s ? s.channel : "TELEBIRR");
+        showOnboarding();
       });
 
       // Called from Kotlin via evaluateJavascript("refresh()") after every action,
@@ -1189,7 +955,7 @@
       // hideOnboarding() is what removes it once credentials are saved.
       function syncOnboardingGate() {
         if (readCredentials()) hideOnboarding();
-        else showOnboarding(null);
+        else showOnboarding();
       }
 
       refresh();
