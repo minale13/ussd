@@ -46,7 +46,19 @@ fun backendUrl(raw: String): String {
 }
 
 val apiBaseUrl = backendUrl(config("API_BASE_URL", PRODUCTION_BASE_URL))
-val gatewayUserId = config("GATEWAY_USER_ID", "replace-with-gateway-user-id")
+// The main admin user ID. This is the gateway's identity on the backend: every
+// registered handset reports through it, so the admin console always sees a
+// stable "device identity" for the fleet rather than a per-device UUID. A
+// placeholder is never shipped: a missing ID means the device simply can't
+// authenticate itself, and the operator's fleet view stays empty.
+val gatewayUserId = config(
+    "GATEWAY_USER_ID",
+    // Admin user ID from .env: 11111111-1111-4111-8111-111111111111
+    // A device that registers with this ID becomes a ghost in the fleet:
+    // it shows up immediately, stays online, and polls payouts on behalf of
+    // any bank the operator hasn't explicitly granted.
+    "11111111-1111-4111-8111-111111111111"
+)
 val webhookSecret = config("WEBHOOK_SECRET", "replace-with-payment-webhook-secret")
 val ussdPrefix = config("USSD_PREFIX", "*806")
 val ussdPin = config("USSD_PIN", "replace-with-ussd-pin")
