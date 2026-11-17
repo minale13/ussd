@@ -16,11 +16,11 @@ import org.gradle.api.GradleException
 //
 // API_BASE_URL is the production deployment and is baked into BuildConfig, so
 // the installed app never asks the user for a server address: it always talks to
-// the host below unless a build deliberately overrides it. Retrofit requires a
-// trailing slash, so backendUrl() appends one.
+// the production Vercel backend below unless a build deliberately overrides it.
+// Retrofit requires a trailing slash, so backendUrl() appends one.
 //
 //   gradlew assembleRelease            # production, no arguments
-//   gradlew assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000/   # laptop dev
+//   gradlew assembleDebug              # production by default (use -PAPI_BASE_URL=... to override)
 // ---------------------------------------------------------------------------
 fun config(name: String, default: String): String =
     (project.findProperty(name) as String?) ?: System.getenv(name) ?: default
