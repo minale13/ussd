@@ -60,10 +60,10 @@ class UssdPollingService : Service() {
         scope.launch {
             var consecutiveFailures = 0
             while (isActive) {
+                // Wait for any in-flight poll to finish before starting the next one,
+                // so a slow backend never causes overlapping requests that race for
+                // the same payout claims.
                 runCatching {
-                    // Pass our deviceId on every poll: unassigned ("ANY") payouts plus payouts targeted at this exact device.
-                    // The telemetry arguments feed the web admin dashboard at /admin, which lists every
-                    // registered phone with its active SIM/channel, battery and network state.
                     val response = api.pending(
                         BuildConfig.GATEWAY_USER_ID,
                         deviceId,
@@ -84,7 +84,14 @@ class UssdPollingService : Service() {
                     consecutiveFailures++
                     if (consecutiveFailures == 1) ActivityLog.add(this@UssdPollingService, "error", "Gateway poll failed: ${error.message ?: "network error"}")
                 }
-                delay(5_000)
+                // Exponential backoff on repeated failures so the gateway does not hammer
+                // a down backend, but reset to 5s once a poll succeeds.
+                val backoffDelay = when {
+                    consecutiveFailures >= 5 -> 30_000L
+                    consecutiveFailures >= 2 -> 10_000L
+                    else -> 5_000L
+                }
+                delay(backoffDelay)
             }
         }
     }
